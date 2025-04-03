@@ -17,7 +17,7 @@
     },
     "palsigslot",
     "spdlog",
-    "commonlibsse-ng",
+    "commonlibae",
     "nlohmann-json"
   ]
 }

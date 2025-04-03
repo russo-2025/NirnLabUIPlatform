@@ -2,6 +2,10 @@
 
 namespace NL::Render
 {
+    /*
+
+    // deprecated error
+
     std::shared_ptr<CEFRenderLayer> CEFRenderLayer::make_shared()
     {
         const auto cefRender = new CEFRenderLayer();
@@ -13,6 +17,7 @@ namespace NL::Render
     {
         a_render->Release();
     }
+    */
 
     CEFRenderLayer::~CEFRenderLayer()
     {

@@ -16,8 +16,9 @@ namespace NL::Render
         IMPLEMENT_REFCOUNTING(CEFRenderLayer);
 
     public:
-        static std::shared_ptr<CEFRenderLayer> make_shared();
-        static void release_shared(CEFRenderLayer* a_render);
+        // deprecated error
+        // static std::shared_ptr<CEFRenderLayer> make_shared();
+        // static void release_shared(CEFRenderLayer* a_render);
 
     protected:
         HANDLE m_sharedTextureHandle = nullptr;

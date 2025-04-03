@@ -59,7 +59,8 @@ file(
 source_group(" " FILES ${proj_stuff})
 
 # Deps
-find_package(CommonLibSSE CONFIG REQUIRED)
+#find_package(CommonLibSSE CONFIG REQUIRED)
+find_package(commonlibae REQUIRED CONFIGS CommonLibSSEConfig.cmake)
 find_package(spdlog CONFIG REQUIRED)
 find_package(directxtk CONFIG REQUIRED)
 find_package(directxmath CONFIG REQUIRED)

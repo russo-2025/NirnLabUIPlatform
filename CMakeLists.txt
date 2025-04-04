@@ -13,8 +13,8 @@ string(REPLACE "\\" "/" ENV_VCPKG_ROOT "$ENV{VCPKG_ROOT}")
 set(ENV{VCPKG_ROOT} ${ENV_VCPKG_ROOT})
 
 set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+
 set(VCPKG_TARGET_TRIPLET "x64-windows-static")
-set(VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_LIST_DIR}/overlay_triplets")
 set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/overlay_ports")
 
 # Includes pdb files in release mode
@@ -59,8 +59,7 @@ file(
 source_group(" " FILES ${proj_stuff})
 
 # Deps
-#find_package(CommonLibSSE CONFIG REQUIRED)
-find_package(commonlibae REQUIRED CONFIGS CommonLibSSEConfig.cmake)
+find_package(CommonLibSSE CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(directxtk CONFIG REQUIRED)
 find_package(directxmath CONFIG REQUIRED)
@@ -227,9 +226,13 @@ endif()
 target_include_directories(
     ${UIPlatformProjectName}
     PUBLIC
-        ${CMAKE_CURRENT_BINARY_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/CEFSubprocess
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatform
+        #${CMAKE_CURRENT_BINARY_DIR}/include
+        #${CMAKE_CURRENT_SOURCE_DIR}/src/CEFSubprocess
+        #${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatform
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/CEFSubprocess>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatform>
+        $<INSTALL_INTERFACE:include>
 )
 
 set_compile_options(${UIPlatformProjectName})
@@ -368,3 +371,81 @@ if(BUILD_AS_SHARED)
             CommonLibSSE::CommonLibSSE
     )
 endif()
+
+# Установка библиотек и экспорт
+install(TARGETS ${UIPlatformProjectName} cef
+    EXPORT NirnLabUIPlatform-export
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}/NirnLabUIPlatform
+    INCLUDES DESTINATION include/NirnLabUIPlatform
+)
+
+# Установка SKSE плагина
+install(
+    TARGETS ${UIPluginProjectName}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}/NirnLabUIPlatform/Data/SKSE/Plugins
+)
+
+# Установка заголовочных файлов
+install(
+    DIRECTORY
+        ${CMAKE_CURRENT_BINARY_DIR}/include/
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatform/NirnLabUIPlatformAPI/
+    DESTINATION include/NirnLabUIPlatform
+    FILES_MATCHING PATTERN "*.h"
+)
+
+# Установка CEFSubprocess.exe и необходимых файлов CEF
+install(
+    FILES
+        $<TARGET_FILE:${CEFSubprocessProjectName}>
+    DESTINATION
+        ${CMAKE_INSTALL_BINDIR}/NirnLabUIPlatform/Data/NirnLabUIPlatform
+)
+
+# Установка файлов CEF и других зависимостей
+install(
+    DIRECTORY
+        ${NL_UI_PATH}/
+    DESTINATION
+        ${CMAKE_INSTALL_BINDIR}/NirnLabUIPlatform/Data/NirnLabUIPlatform
+    FILES_MATCHING
+        PATTERN "*.dll"
+        PATTERN "*.pak"
+        PATTERN "*.dat"
+        PATTERN "*.bin"
+        PATTERN "*.json"
+)
+
+# Установка подкаталогов CEF
+install(
+    DIRECTORY
+        ${NL_UI_PATH}/CEF/
+    DESTINATION
+        ${CMAKE_INSTALL_BINDIR}/NirnLabUIPlatform/Data/NirnLabUIPlatform/CEF
+)
+
+# Конфигурация пакета для find_package
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/NirnLabUIPlatform-config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/NirnLabUIPlatform-config.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/NirnLabUIPlatform
+)
+
+# Установка файла конфигурации
+install(
+    FILES 
+        ${CMAKE_CURRENT_BINARY_DIR}/NirnLabUIPlatform-config.cmake
+    DESTINATION 
+        ${CMAKE_INSTALL_LIBDIR}/cmake/NirnLabUIPlatform
+)
+
+# Установка экспорта целей
+install(
+    EXPORT NirnLabUIPlatform-export
+    NAMESPACE NirnLabUIPlatform::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/NirnLabUIPlatform
+    FILE NirnLabUIPlatform-targets.cmake
+)

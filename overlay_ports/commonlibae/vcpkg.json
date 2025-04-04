@@ -6,6 +6,10 @@
     "license": "MIT",
     "supports": "windows & x64",
     "dependencies": [
+		{
+		"name": "vcpkg-cmake-config",
+		"host": true
+	  	},
         "boost-stl-interfaces",
         "rsm-binary-io",
         "spdlog"

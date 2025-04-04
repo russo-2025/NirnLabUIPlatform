@@ -7,14 +7,19 @@ vcpkg_from_github(
 )
 
 vcpkg_configure_cmake(
-  SOURCE_PATH ${SOURCE_PATH} 
+  SOURCE_PATH ${SOURCE_PATH}
   OPTIONS
     -DSKYRIM_SUPPORT_AE=ON
 )
 
 vcpkg_install_cmake()
-vcpkg_fixup_cmake_targets(CONFIG_PATH "lib/cmake/commonlibsse")
+vcpkg_cmake_config_fixup(PACKAGE_NAME CommonLibSSE CONFIG_PATH lib/cmake)
 vcpkg_copy_pdbs()
 
-file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
-file(INSTALL "${SOURCE_PATH}/LICENSE" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)
+file(GLOB CMAKE_CONFIGS "${CURRENT_PACKAGES_DIR}/share/CommonLibSSE/CommonLibSSE/*.cmake")
+file(INSTALL ${CMAKE_CONFIGS} DESTINATION "${CURRENT_PACKAGES_DIR}/share/CommonLibSSE")
+
+file(
+	INSTALL "${SOURCE_PATH}/LICENSE"
+	DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"
+	RENAME copyright)

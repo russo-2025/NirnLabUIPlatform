@@ -93,7 +93,11 @@ set(CEF_SHARE "${CEF_SHARE}/share/cef-prebuilt")
 target_link_libraries(cef INTERFACE "$<IF:$<CONFIG:Debug>,${CEF_LIBRARY_DEBUG},${CEF_LIBRARY_RELEASE}>")
 target_link_libraries(cef INTERFACE "${CEF_SHARE}/$<CONFIG>/cef_sandbox.lib")
 target_link_libraries(cef INTERFACE "${CEF_SHARE}/$<CONFIG>/libcef.lib")
-target_include_directories(cef INTERFACE ${CEF_INCLUDE_DIR})
+#target_include_directories(cef INTERFACE ${CEF_INCLUDE_DIR})
+target_include_directories(cef INTERFACE
+    $<BUILD_INTERFACE:${CEF_INCLUDE_DIR}>
+    $<INSTALL_INTERFACE:${CURRENT_PACKAGES_DIR}/include>
+)
 set(cef_files_path "${CEF_SHARE}/$<IF:$<CONFIG:Debug>,Debug,Release>")
 add_custom_target(
     CefLibraryFiles
@@ -371,6 +375,8 @@ if(BUILD_AS_SHARED)
             CommonLibSSE::CommonLibSSE
     )
 endif()
+
+# ================================ Install ===============================
 
 # Установка библиотек и экспорт
 install(TARGETS ${UIPlatformProjectName} cef

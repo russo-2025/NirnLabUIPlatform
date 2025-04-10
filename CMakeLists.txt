@@ -12,7 +12,16 @@ set(API_MINOR_VERSION 1)
 string(REPLACE "\\" "/" ENV_VCPKG_ROOT "$ENV{VCPKG_ROOT}")
 set(ENV{VCPKG_ROOT} ${ENV_VCPKG_ROOT})
 
-set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+if(NOT EXISTS ${CMAKE_TOOLCHAIN_FILE})
+	if(EXISTS $ENV{VCPKG_ROOT})
+		cmake_path(SET CMAKE_TOOLCHAIN_FILE NORMALIZE $ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
+	else()
+		message(FATAL_ERROR "invalid VCPKG_ROOT")
+	endif()
+	
+	# install deps from vcpkg.json
+	include($ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
+endif()
 
 set(VCPKG_TARGET_TRIPLET "x64-windows-static")
 set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/overlay_ports")

@@ -150,23 +150,8 @@ static inline TFunc ExecLibFunc(const char* a_funcName)
 
     return func;
 }
-#ifndef SKYRIM_SUPPORT_AE
-    DLLEXPORT bool SKSEPlugin_Query(const SKSE::QueryInterface* skse, SKSE::PluginInfo* info)
-    {
-        info->infoVersion = SKSE::PluginInfo::kVersion;
-        info->name = "NirnLabUIPlatformPlugin";
-        info->version = Version::ASINT;
-
-        if (skse->IsEditor())
-        {
-            //_FATALERROR("loaded in editor, marking as incompatible");
-            return false;
-        }
-        return true;
-    }
-
-#else
-extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
+#ifdef SKYRIM_IS_AE
+    extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     SKSE::PluginVersionData v{};
     v.pluginVersion = NL::UI::LibVersion::AS_INT;
     v.PluginName(NL::UI::LibVersion::PROJECT_NAME);
@@ -176,14 +161,27 @@ extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
     return v;
 }();
+#else
+    DLLEXPORT bool SKSEPlugin_Query(const SKSE::QueryInterface* skse, SKSE::PluginInfo* info)
+    {
+        info->infoVersion = SKSE::PluginInfo::kVersion;
+        info->name = "NirnLabUIPlatformPlugin";
+        info->version = 1;
+
+        if (skse->IsEditor())
+        {
+            //_FATALERROR("loaded in editor, marking as incompatible");
+            return false;
+        }
+        return true;
+    }   
 #endif
 extern "C" void DLLEXPORT APIENTRY Initialize()
 {
     auto preload = ExecLibFunc<PreloadFunc>("Initialize");
     preload();
 }
-
-SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
+extern "C" DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
 {
     try
     {

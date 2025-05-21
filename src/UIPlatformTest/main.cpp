@@ -2,23 +2,8 @@
 #include "TestCases/TestCases.hpp"
 
 bool g_canUseAPI = false;
-#ifndef SKYRIM_SUPPORT_AE
-    DLLEXPORT bool SKSEPlugin_Query(const SKSE::QueryInterface* skse, SKSE::PluginInfo* info)
-    {
-        info->infoVersion = SKSE::PluginInfo::kVersion;
-        info->name = "NirnLabUIPlatformTest";
-        info->version = Version::ASINT;
-
-        if (skse->IsEditor())
-        {
-            //_FATALERROR("loaded in editor, marking as incompatible");
-            return false;
-        }
-        return true;
-    }
-
-#else
-extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
+#ifdef SKYRIM_IS_AE
+    extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     SKSE::PluginVersionData v{};
     v.pluginVersion = 1;
     v.PluginName(PLUGIN_NAME);
@@ -28,6 +13,20 @@ extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
     return v;
 }();
+#else
+    DLLEXPORT bool SKSEPlugin_Query(const SKSE::QueryInterface* skse, SKSE::PluginInfo* info)
+    {
+        info->infoVersion = SKSE::PluginInfo::kVersion;
+        info->name = "NirnLabUIPlatformTest";
+        info->version = 1;
+
+        if (skse->IsEditor())
+        {
+            //_FATALERROR("loaded in editor, marking as incompatible");
+            return false;
+        }
+        return true;
+    }
 #endif
 void InitLog()
 {
@@ -54,7 +53,7 @@ void InitLog()
     spdlog::set_pattern("[%T.%e] [%^%l%$] : %v"s);
 }
 
-SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
+extern "C" DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
 {
     if (a_skse->IsEditor())
     {

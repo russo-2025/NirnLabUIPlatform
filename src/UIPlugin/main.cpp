@@ -150,7 +150,18 @@ static inline TFunc ExecLibFunc(const char* a_funcName)
 
     return func;
 }
-#ifndef SKYRIM_SUPPORT_AE
+#ifdef SKYRIM_SUPPORT_AE
+    extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
+    SKSE::PluginVersionData v{};
+    v.pluginVersion = NL::UI::LibVersion::AS_INT;
+    v.PluginName(NL::UI::LibVersion::PROJECT_NAME);
+    v.AuthorName("kkEngine"sv);
+    v.CompatibleVersions({SKSE::RUNTIME_1_6_640, SKSE::RUNTIME_1_6_1130});
+    v.UsesAddressLibrary();
+    v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
+    return v;
+}();
+#else
     DLLEXPORT bool SKSEPlugin_Query(const SKSE::QueryInterface* skse, SKSE::PluginInfo* info)
     {
         info->infoVersion = SKSE::PluginInfo::kVersion;
@@ -163,19 +174,7 @@ static inline TFunc ExecLibFunc(const char* a_funcName)
             return false;
         }
         return true;
-    }
-
-#else
-extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
-    SKSE::PluginVersionData v{};
-    v.pluginVersion = NL::UI::LibVersion::AS_INT;
-    v.PluginName(NL::UI::LibVersion::PROJECT_NAME);
-    v.AuthorName("kkEngine"sv);
-    v.CompatibleVersions({SKSE::RUNTIME_1_6_640, SKSE::RUNTIME_1_6_1130});
-    v.UsesAddressLibrary();
-    v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
-    return v;
-}();
+    }   
 #endif
 extern "C" void DLLEXPORT APIENTRY Initialize()
 {

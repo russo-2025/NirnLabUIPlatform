@@ -2,7 +2,18 @@
 #include "TestCases/TestCases.hpp"
 
 bool g_canUseAPI = false;
-#ifndef SKYRIM_SUPPORT_AE
+#ifdef SKYRIM_SUPPORT_AE
+    extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
+    SKSE::PluginVersionData v{};
+    v.pluginVersion = 1;
+    v.PluginName(PLUGIN_NAME);
+    v.AuthorName("kkEngine"sv);
+    v.CompatibleVersions({SKSE::RUNTIME_1_6_640, SKSE::RUNTIME_1_6_1130});
+    v.UsesAddressLibrary();
+    v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
+    return v;
+}();
+#else
     DLLEXPORT bool SKSEPlugin_Query(const SKSE::QueryInterface* skse, SKSE::PluginInfo* info)
     {
         info->infoVersion = SKSE::PluginInfo::kVersion;
@@ -16,18 +27,6 @@ bool g_canUseAPI = false;
         }
         return true;
     }
-
-#else
-extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
-    SKSE::PluginVersionData v{};
-    v.pluginVersion = 1;
-    v.PluginName(PLUGIN_NAME);
-    v.AuthorName("kkEngine"sv);
-    v.CompatibleVersions({SKSE::RUNTIME_1_6_640, SKSE::RUNTIME_1_6_1130});
-    v.UsesAddressLibrary();
-    v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
-    return v;
-}();
 #endif
 void InitLog()
 {

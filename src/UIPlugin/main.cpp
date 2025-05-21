@@ -150,7 +150,7 @@ static inline TFunc ExecLibFunc(const char* a_funcName)
 
     return func;
 }
-#ifdef SKYRIM_SUPPORT_AE
+#ifdef SKYRIM_IS_AE
     extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     SKSE::PluginVersionData v{};
     v.pluginVersion = NL::UI::LibVersion::AS_INT;

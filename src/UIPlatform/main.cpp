@@ -56,7 +56,7 @@ void InitCefSubprocessLog()
 
     spdlog::register_logger(std::move(log));
 }
-
+#ifdef SKYRIM_SUPPORT_AE
 extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     SKSE::PluginVersionData v{};
     v.pluginVersion = NL::UI::LibVersion::AS_INT;
@@ -67,7 +67,7 @@ extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
     return v;
 }();
-
+#endif
 extern "C" DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
 {
     if (a_skse->IsEditor())

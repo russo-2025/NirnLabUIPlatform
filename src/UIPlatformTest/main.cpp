@@ -2,7 +2,7 @@
 #include "TestCases/TestCases.hpp"
 
 bool g_canUseAPI = false;
-
+#ifdef SKYRIM_SUPPORT_AE
 extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     SKSE::PluginVersionData v{};
     v.pluginVersion = 1;
@@ -13,7 +13,7 @@ extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
     return v;
 }();
-
+#endif
 void InitLog()
 {
 #ifdef _DEBUG

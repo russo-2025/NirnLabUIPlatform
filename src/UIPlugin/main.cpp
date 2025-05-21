@@ -166,7 +166,7 @@ static inline TFunc ExecLibFunc(const char* a_funcName)
     {
         info->infoVersion = SKSE::PluginInfo::kVersion;
         info->name = "NirnLabUIPlatformPlugin";
-        info->version = Version::ASINT;
+        info->version = 1;
 
         if (skse->IsEditor())
         {

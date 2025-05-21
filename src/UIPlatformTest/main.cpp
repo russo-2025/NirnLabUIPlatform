@@ -18,7 +18,7 @@ bool g_canUseAPI = false;
     {
         info->infoVersion = SKSE::PluginInfo::kVersion;
         info->name = "NirnLabUIPlatformTest";
-        info->version = Version::ASINT;
+        info->version = 1;
 
         if (skse->IsEditor())
         {

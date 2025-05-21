@@ -75,7 +75,7 @@ void InitCefSubprocessLog()
     {
         info->infoVersion = SKSE::PluginInfo::kVersion;
         info->name = "NirnLabUIPlatform";
-        info->version = Version::ASINT;
+        info->version = 1;
 
         if (skse->IsEditor())
         {

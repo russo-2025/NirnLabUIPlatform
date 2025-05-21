@@ -150,7 +150,22 @@ static inline TFunc ExecLibFunc(const char* a_funcName)
 
     return func;
 }
+#ifndef SKYRIM_SUPPORT_AE
+    DLLEXPORT bool SKSEPlugin_Query(const SKSE::QueryInterface* skse, SKSE::PluginInfo* info)
+    {
+        info->infoVersion = SKSE::PluginInfo::kVersion;
+        info->name = "NirnLabUIPlatformPlugin";
+        info->version = Version::ASINT;
 
+        if (skse->IsEditor())
+        {
+            //_FATALERROR("loaded in editor, marking as incompatible");
+            return false;
+        }
+        return true;
+    }
+
+#else
 extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     SKSE::PluginVersionData v{};
     v.pluginVersion = NL::UI::LibVersion::AS_INT;
@@ -161,7 +176,7 @@ extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
     return v;
 }();
-
+#endif
 extern "C" void DLLEXPORT APIENTRY Initialize()
 {
     auto preload = ExecLibFunc<PreloadFunc>("Initialize");

@@ -2,6 +2,8 @@
 #include "Hooks/ShutdownHook.hpp"
 #include "Controllers/PublicAPIController.h"
 
+
+
 inline void ShowMessageBox(const char* a_msg)
 {
     MessageBoxA(0, a_msg, "ERROR", MB_ICONERROR);
@@ -56,7 +58,22 @@ void InitCefSubprocessLog()
 
     spdlog::register_logger(std::move(log));
 }
+#ifndef SKYRIM_SUPPORT_AE
+    DLLEXPORT bool SKSEPlugin_Query(const SKSE::QueryInterface* skse, SKSE::PluginInfo* info)
+    {
+        info->infoVersion = SKSE::PluginInfo::kVersion;
+        info->name = "NirnLabUIPlatform";
+        info->version = Version::ASINT;
 
+        if (skse->IsEditor())
+        {
+            //_FATALERROR("loaded in editor, marking as incompatible");
+            return false;
+        }
+        return true;
+    }
+
+#else
 extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     SKSE::PluginVersionData v{};
     v.pluginVersion = NL::UI::LibVersion::AS_INT;
@@ -67,7 +84,7 @@ extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
     return v;
 }();
-
+#endif
 extern "C" DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
 {
     if (a_skse->IsEditor())

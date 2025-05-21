@@ -181,7 +181,7 @@ extern "C" void DLLEXPORT APIENTRY Initialize()
     auto preload = ExecLibFunc<PreloadFunc>("Initialize");
     preload();
 }
-DLLEXPORT bool SKSEPlugin_Load(void* skse)
+DLLEXPORT bool SKSEPlugin_Load(void* a_skse)
 {
     try
     {

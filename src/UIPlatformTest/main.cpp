@@ -53,7 +53,7 @@ void InitLog()
     spdlog::set_pattern("[%T.%e] [%^%l%$] : %v"s);
 }
 
-SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
+DLLEXPORT bool SKSEPlugin_Load(void* skse)
 {
     if (a_skse->IsEditor())
     {

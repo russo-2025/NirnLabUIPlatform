@@ -43,11 +43,13 @@ function(set_compile_options target)
                 "$<$<CONFIG:RELEASE>:/INCREMENTAL:NO;/OPT:REF;/OPT:ICF;>"
         )
 
-        target_compile_definitions(
-	        ${target}
-	        PUBLIC
-                SKYRIM_SUPPORT_AE
-        )
+        if(NOT SKYRIM_SE)
+            target_compile_definitions(
+                ${target}
+                PUBLIC
+                    SKYRIM_SUPPORT_AE
+            )
+        endif()
     endif()
 endfunction()
 

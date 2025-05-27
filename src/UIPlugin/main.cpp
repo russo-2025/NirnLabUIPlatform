@@ -150,17 +150,21 @@ static inline TFunc ExecLibFunc(const char* a_funcName)
 
     return func;
 }
+extern "C"
+{
 #ifdef SKYRIM_IS_AE
-    extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
-    SKSE::PluginVersionData v{};
-    v.pluginVersion = NL::UI::LibVersion::AS_INT;
-    v.PluginName(NL::UI::LibVersion::PROJECT_NAME);
-    v.AuthorName("kkEngine"sv);
-    v.CompatibleVersions({SKSE::RUNTIME_1_6_640, SKSE::RUNTIME_1_6_1130});
-    v.UsesAddressLibrary();
-    v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
-    return v;
-}();
+    DLLEXPORT constinit auto SKSEPlugin_Version = []() {
+        SKSE::PluginVersionData v{};
+        v.pluginVersion = NL::UI::LibVersion::AS_INT;
+        v.PluginName(NL::UI::LibVersion::PROJECT_NAME);
+        v.AuthorName("kkEngine"sv);
+        v.CompatibleVersions({SKSE::RUNTIME_1_6_640, SKSE::RUNTIME_1_6_1130});
+        v.UsesAddressLibrary();
+        v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
+        return v;
+    }();
+
+    DLLEXPORT constinit SKSE::PluginVersionData SKSEPlugin_Version = GetPluginVersion();
 #else
     DLLEXPORT bool SKSEPlugin_Query(const SKSE::QueryInterface* skse, SKSE::PluginInfo* info)
     {
@@ -174,23 +178,27 @@ static inline TFunc ExecLibFunc(const char* a_funcName)
             return false;
         }
         return true;
-    }   
-#endif
-extern "C" void DLLEXPORT APIENTRY Initialize()
-{
-    auto preload = ExecLibFunc<PreloadFunc>("Initialize");
-    preload();
-}
-extern "C" DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
-{
-    try
-    {
-        auto entry = ExecLibFunc<EntryFunc>("Entry");
-        return entry(a_skse);
     }
-    catch (const std::exception& e)
+#endif
+
+    void DLLEXPORT APIENTRY Initialize()
     {
-        ShowMessageBox(e.what());
-        return false;
+        auto preload = ExecLibFunc<PreloadFunc>("Initialize");
+        preload();
+    }
+
+    DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_skse)
+    {
+        try
+        {
+            auto entry = ExecLibFunc<EntryFunc>("Entry");
+            return entry(a_skse);
+            return true;
+        }
+        catch (const std::exception& e)
+        {
+            ShowMessageBox(e.what());
+            return false;
+        }
     }
 }

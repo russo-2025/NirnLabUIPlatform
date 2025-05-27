@@ -1,6 +1,16 @@
 cmake_minimum_required(VERSION 3.23)
 
 option(BUILD_AS_SHARED "Build as dll skse plugin else build as static lib" ON)
+option(SKYRIM_SE "Legacy Skyrim SE (1.5) build" ON)
+option(BUILT_TEST_PLUGIN "build test plugin" OFF)
+
+if(SKYRIM_SE)
+    set(SKYRIM_IS_AE OFF)
+    list(APPEND VCPKG_MANIFEST_FEATURES "commonlib-se")
+else()
+    set(SKYRIM_IS_AE ON)
+    list(APPEND VCPKG_MANIFEST_FEATURES "commonlib-ae")
+endif()
 
 # Version
 set(LIB_MAJOR_VERSION 2)
@@ -12,6 +22,8 @@ set(API_MINOR_VERSION 1)
 string(REPLACE "\\" "/" ENV_VCPKG_ROOT "$ENV{VCPKG_ROOT}")
 set(ENV{VCPKG_ROOT} ${ENV_VCPKG_ROOT})
 
+set(VCPKG_TARGET_TRIPLET "x64-windows-static")
+
 if(NOT EXISTS ${CMAKE_TOOLCHAIN_FILE})
 	if(EXISTS $ENV{VCPKG_ROOT})
 		cmake_path(SET CMAKE_TOOLCHAIN_FILE NORMALIZE $ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
@@ -19,12 +31,15 @@ if(NOT EXISTS ${CMAKE_TOOLCHAIN_FILE})
 		message(FATAL_ERROR "invalid VCPKG_ROOT")
 	endif()
 	
+    set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/overlay_ports")
+
+
 	# install deps from vcpkg.json
 	include($ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
 endif()
 
-set(VCPKG_TARGET_TRIPLET "x64-windows-static")
-set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/overlay_ports")
+message("CMAKE_TOOLCHAIN_FILE = ${CMAKE_TOOLCHAIN_FILE}")
+
 
 # Includes pdb files in release mode
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
@@ -332,57 +347,59 @@ endif()
 
 # ============================ UIPlatformTest ============================
 if(BUILD_AS_SHARED)
-    set(UIPlatformTestName "NirnLabUIPlatformTest")
+    if(BUILT_TEST_PLUGIN)
+        set(UIPlatformTestName "NirnLabUIPlatformTest")
 
-    file(
-        COPY ${API_FOLDER_PATH}
-        DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatformTest/
-    )
+        file(
+            COPY ${API_FOLDER_PATH}
+            DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatformTest/
+        )
 
-    file(
-        GLOB_RECURSE
-        UIPlatformTestName_src
-            "src/UIPlatformTest/**.h"
-            "src/UIPlatformTest/**.hpp"
-            "src/UIPlatformTest/**.cpp"
-    )
-    source_group(
-        TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatformTest"
-        FILES ${UIPlatformTestName_src}
-    )
+        file(
+            GLOB_RECURSE
+            UIPlatformTestName_src
+                "src/UIPlatformTest/**.h"
+                "src/UIPlatformTest/**.hpp"
+                "src/UIPlatformTest/**.cpp"
+        )
+        source_group(
+            TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatformTest"
+            FILES ${UIPlatformTestName_src}
+        )
 
-    add_library(${UIPlatformTestName} SHARED ${UIPlatformTestName_src})
-    set_target_properties(
-        ${UIPlatformTestName}
-        PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY_DEBUG ${SKSE_PLUGIN_PATH}
-            RUNTIME_OUTPUT_DIRECTORY_RELEASE ${SKSE_PLUGIN_PATH}
-            LIBRARY_OUTPUT_DIRECTORY_DEBUG ${SKSE_PLUGIN_PATH}
-            LIBRARY_OUTPUT_DIRECTORY_RELEASE ${SKSE_PLUGIN_PATH}
-            #ARCHIVE_OUTPUT_DIRECTORY ${SKSE_PLUGIN_PATH}/archive
-            #PDB_OUTPUT_DIRECTORY ${SKSE_PLUGIN_PATH}
-    )
+        add_library(${UIPlatformTestName} SHARED ${UIPlatformTestName_src})
+        set_target_properties(
+            ${UIPlatformTestName}
+            PROPERTIES
+                RUNTIME_OUTPUT_DIRECTORY_DEBUG ${SKSE_PLUGIN_PATH}
+                RUNTIME_OUTPUT_DIRECTORY_RELEASE ${SKSE_PLUGIN_PATH}
+                LIBRARY_OUTPUT_DIRECTORY_DEBUG ${SKSE_PLUGIN_PATH}
+                LIBRARY_OUTPUT_DIRECTORY_RELEASE ${SKSE_PLUGIN_PATH}
+                #ARCHIVE_OUTPUT_DIRECTORY ${SKSE_PLUGIN_PATH}/archive
+                #PDB_OUTPUT_DIRECTORY ${SKSE_PLUGIN_PATH}
+        )
 
-    target_include_directories(
-        ${UIPlatformTestName}
-        PUBLIC
-            ${CMAKE_CURRENT_BINARY_DIR}/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatformTest
-    )
+        target_include_directories(
+            ${UIPlatformTestName}
+            PUBLIC
+                ${CMAKE_CURRENT_BINARY_DIR}/include
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatformTest
+        )
 
-    set_compile_options(${UIPlatformTestName})
+        set_compile_options(${UIPlatformTestName})
 
-    target_precompile_headers(
-        ${UIPlatformTestName}
-        PRIVATE
-            "src/UIPlatformTest/PCH.h"
-    )
+        target_precompile_headers(
+            ${UIPlatformTestName}
+            PRIVATE
+                "src/UIPlatformTest/PCH.h"
+        )
 
-    target_link_libraries(
-        ${UIPlatformTestName}
-        PUBLIC
-            CommonLibSSE::CommonLibSSE
-    )
+        target_link_libraries(
+            ${UIPlatformTestName}
+            PUBLIC
+                CommonLibSSE::CommonLibSSE
+        )
+    endif()
 endif()
 
 # ================================ Install ===============================

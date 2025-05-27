@@ -2,8 +2,6 @@
 #include "Hooks/ShutdownHook.hpp"
 #include "Controllers/PublicAPIController.h"
 
-
-
 inline void ShowMessageBox(const char* a_msg)
 {
     MessageBoxA(0, a_msg, "ERROR", MB_ICONERROR);
@@ -59,59 +57,36 @@ void InitCefSubprocessLog()
     spdlog::register_logger(std::move(log));
 }
 
-#ifdef SKYRIM_IS_AE
-    extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
-    SKSE::PluginVersionData v{};
-    v.pluginVersion = NL::UI::LibVersion::AS_INT;
-    v.PluginName(NL::UI::LibVersion::PROJECT_NAME);
-    v.AuthorName("kkEngine"sv);
-    v.CompatibleVersions({SKSE::RUNTIME_1_6_640, SKSE::RUNTIME_1_6_1130});
-    v.UsesAddressLibrary();
-    v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
-    return v;
-}();
-#else
-    DLLEXPORT bool SKSEPlugin_Query(const SKSE::QueryInterface* skse, SKSE::PluginInfo* info)
+extern "C"
+{
+    DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
     {
-        info->infoVersion = SKSE::PluginInfo::kVersion;
-        info->name = "NirnLabUIPlatform";
-        info->version = 1;
-
-        if (skse->IsEditor())
+        if (a_skse->IsEditor())
         {
-            //_FATALERROR("loaded in editor, marking as incompatible");
             return false;
         }
+
+        try
+        {
+            // SKSE
+            SKSE::Init(a_skse);
+            SKSE::AllocTrampoline(1024);
+            InitDefaultLog();
+            InitCefSubprocessLog();
+
+            // Hooks
+            NL::Hooks::WinProcHook::Install();
+            NL::Hooks::ShutdownHook::Install();
+
+            // API controller
+            NL::Controllers::PublicAPIController::GetSingleton().Init();
+        }
+        catch (const std::exception& e)
+        {
+            ShowMessageBox(e.what());
+            return false;
+        }
+
         return true;
     }
-#endif
-extern "C" DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
-{
-    if (a_skse->IsEditor())
-    {
-        return false;
-    }
-
-    try
-    {
-        // SKSE
-        SKSE::Init(a_skse);
-        SKSE::AllocTrampoline(1024);
-        InitDefaultLog();
-        InitCefSubprocessLog();
-
-        // Hooks
-        NL::Hooks::WinProcHook::Install();
-        NL::Hooks::ShutdownHook::Install();
-
-        // API controller
-        NL::Controllers::PublicAPIController::GetSingleton().Init();
-    }
-    catch (const std::exception& e)
-    {
-        ShowMessageBox(e.what());
-        return false;
-    }
-
-    return true;
 }

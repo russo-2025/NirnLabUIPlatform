@@ -19,7 +19,7 @@ namespace NL::CEF
         ZeroMemory(&m_lastCefMouseEvent, sizeof(CefMouseEvent));
         ZeroMemory(&m_lastCharCefKeyEvent, sizeof(CefKeyEvent));
 
-        m_OnWndInactive_Connection = NL::Hooks::WinProcHook::OnWndInactive.connect([&]() {
+        m_onWndInactive_Connection = NL::Hooks::WinProcHook::OnWndInactive.connect([&]() {
             ClearCefKeyModifiers();
         });
 
@@ -434,6 +434,19 @@ namespace NL::CEF
     void __cdecl DefaultBrowser::RemoveFunctionCallback(const NL::JS::JSFuncInfo& a_callbackInfo)
     {
         RemoveFunctionCallback(a_callbackInfo.objectName, a_callbackInfo.funcName);
+    }
+
+    void __cdecl DefaultBrowser::ExecEventFunction(const char* a_eventName, const char* a_data)
+    {
+        const auto browser = m_cefClient->GetBrowser();
+        if (IsPageLoaded() && browser != nullptr)
+        {
+            auto cefMessage = CefProcessMessage::Create(IPC_JS_EVENT_FUNCTION_CALL_EVENT);
+            cefMessage->GetArgumentList()->SetString(0, a_eventName);
+            cefMessage->GetArgumentList()->SetString(1, a_data);
+
+            browser->GetMainFrame()->SendProcessMessage(CefProcessId::PID_RENDERER, cefMessage);
+        }
     }
 
 #pragma endregion

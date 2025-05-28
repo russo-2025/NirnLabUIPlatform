@@ -117,10 +117,8 @@ set(CEF_SHARE "${CEF_SHARE}/share/cef-prebuilt")
 target_link_libraries(cef INTERFACE "$<IF:$<CONFIG:Debug>,${CEF_LIBRARY_DEBUG},${CEF_LIBRARY_RELEASE}>")
 target_link_libraries(cef INTERFACE "${CEF_SHARE}/$<CONFIG>/cef_sandbox.lib")
 target_link_libraries(cef INTERFACE "${CEF_SHARE}/$<CONFIG>/libcef.lib")
-#target_include_directories(cef INTERFACE ${CEF_INCLUDE_DIR})
 target_include_directories(cef INTERFACE
     $<BUILD_INTERFACE:${CEF_INCLUDE_DIR}>
-    $<INSTALL_INTERFACE:${CURRENT_PACKAGES_DIR}/include>
 )
 set(cef_files_path "${CEF_SHARE}/$<IF:$<CONFIG:Debug>,Debug,Release>")
 add_custom_target(
@@ -255,13 +253,10 @@ endif()
 target_include_directories(
     ${UIPlatformProjectName}
     PUBLIC
-        #${CMAKE_CURRENT_BINARY_DIR}/include
-        #${CMAKE_CURRENT_SOURCE_DIR}/src/CEFSubprocess
-        #${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatform
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatform/NirnLabUIPlatformAPI>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/CEFSubprocess>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatform>
-        $<INSTALL_INTERFACE:include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 set_compile_options(${UIPlatformProjectName})
@@ -405,36 +400,30 @@ endif()
 
 # ================================ Install ===============================
 
+# Подключение стандартных директорий
+include(GNUInstallDirs)
+
 # Установка библиотек и экспорт
 install(TARGETS ${UIPlatformProjectName} cef
     EXPORT NirnLabUIPlatform-export
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}/NirnLabUIPlatform
-    INCLUDES DESTINATION include/NirnLabUIPlatform
 )
 
-# Установка SKSE плагина
-install(
-    TARGETS ${UIPluginProjectName}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}/NirnLabUIPlatform/Data/SKSE/Plugins
-)
+# Установка SKSE плагина (только если существует)
+if(BUILD_AS_SHARED AND TARGET ${UIPluginProjectName})
+    install(
+        TARGETS ${UIPluginProjectName}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
 
 # Установка заголовочных файлов
 install(
-    DIRECTORY
-        ${CMAKE_CURRENT_BINARY_DIR}/include/
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatform/NirnLabUIPlatformAPI/
-    DESTINATION include/NirnLabUIPlatform
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatform/NirnLabUIPlatformAPI/"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/NirnLabUIPlatform"
     FILES_MATCHING PATTERN "*.h"
-)
-
-# Установка CEFSubprocess.exe и необходимых файлов CEF
-install(
-    FILES
-        $<TARGET_FILE:${CEFSubprocessProjectName}>
-    DESTINATION
-        ${CMAKE_INSTALL_BINDIR}/NirnLabUIPlatform/Data/NirnLabUIPlatform
 )
 
 # Установка файлов CEF и других зависимостей

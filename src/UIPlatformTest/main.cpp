@@ -57,7 +57,7 @@ extern "C"
     }
 #endif
 
-    DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
+    DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_skse)
     {
         if (a_skse->IsEditor())
         {

@@ -113,4 +113,9 @@ namespace NL::UI
     {
         IUIPlatformAPI* API = nullptr;
     };
+
+#ifndef NL_LIB_SHARED
+    void Init();
+    ResponseAPIMessage* CreateNLApi(Settings* settings);
+#endif
 }

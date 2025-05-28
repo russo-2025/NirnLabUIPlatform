@@ -57,36 +57,94 @@ void InitCefSubprocessLog()
     spdlog::register_logger(std::move(log));
 }
 
-extern "C"
+#ifndef NL_LIB_SHARED
+void NL::UI::Init()
 {
-    DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
-    {
-        if (a_skse->IsEditor())
-        {
-            return false;
-        }
-
-        try
-        {
-            // SKSE
-            SKSE::Init(a_skse);
-            SKSE::AllocTrampoline(1024);
-            InitDefaultLog();
-            InitCefSubprocessLog();
-
-            // Hooks
-            NL::Hooks::WinProcHook::Install();
-            NL::Hooks::ShutdownHook::Install();
-
-            // API controller
-            NL::Controllers::PublicAPIController::GetSingleton().Init();
-        }
-        catch (const std::exception& e)
-        {
-            ShowMessageBox(e.what());
-            return false;
-        }
-
-        return true;
-    }
+    SKSE::AllocTrampoline(1024);
+    InitCefSubprocessLog();
+    NL::Hooks::WinProcHook::Install();
+    NL::Hooks::ShutdownHook::Install();
+    NL::Controllers::PublicAPIController::GetSingleton().Init();
 }
+
+NL::UI::ResponseAPIMessage* NL::UI::CreateNLApi(NL::UI::Settings* settings)
+{
+    auto& controller = NL::Controllers::PublicAPIController::GetSingleton();
+    controller.SetSettingsProvider(settings);
+    auto& platformService = NL::Services::UIPlatformService::GetSingleton();
+    if (!platformService.IsInited() && !platformService.InitAndShowMenuWithSettings(controller.GetSettingsProvider()))
+    {
+        spdlog::error("{}: Can't response API because ui platform failed to init", NameOf(PublicAPIController));
+        return nullptr;
+    }
+
+    return controller.GetAPIMessage();
+}
+#endif
+
+#ifdef NL_LIB_SHARED
+
+    #ifdef SKYRIM_IS_AE
+extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
+    SKSE::PluginVersionData v{};
+    v.pluginVersion = NL::UI::LibVersion::AS_INT;
+    v.PluginName(NL::UI::LibVersion::PROJECT_NAME);
+    v.AuthorName("kkEngine"sv);
+    v.CompatibleVersions({SKSE::RUNTIME_1_6_640, SKSE::RUNTIME_1_6_1130});
+    v.UsesAddressLibrary();
+    v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
+    return v;
+}();
+
+    // DLLEXPORT constinit SKSE::PluginVersionData SKSEPlugin_Version = GetPluginVersion(); ??
+    #else
+extern "C" DLLEXPORT bool SKSEPlugin_Query(const SKSE::QueryInterface* skse, SKSE::PluginInfo* info)
+{
+    info->infoVersion = SKSE::PluginInfo::kVersion;
+    info->name = NL::UI::LibVersion::PROJECT_NAME;
+    info->version = NL::UI::LibVersion::AS_INT;
+
+    if (skse->IsEditor())
+    {
+        //_FATALERROR("loaded in editor, marking as incompatible");
+        return false;
+    }
+    return true;
+}
+    #endif
+
+extern "C" DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
+{
+    if (a_skse->IsEditor())
+    {
+        return false;
+    }
+
+    try
+    {
+        // SKSE
+        SKSE::Init(a_skse);
+        SKSE::AllocTrampoline(1024);
+        InitDefaultLog();
+        InitCefSubprocessLog();
+
+        spdlog::info("winproc install");
+        // Hooks
+        NL::Hooks::WinProcHook::Install();
+
+        spdlog::info("shutdown install");
+        NL::Hooks::ShutdownHook::Install();
+
+        // API controller
+        NL::Controllers::PublicAPIController::GetSingleton().Init();
+    }
+    catch (const std::exception& e)
+    {
+        ShowMessageBox(e.what());
+        return false;
+    }
+
+    return true;
+}
+
+#endif

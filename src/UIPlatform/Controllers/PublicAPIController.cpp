@@ -43,6 +43,7 @@ namespace NL::Controllers
             NL::Services::UIPlatformService::GetSingleton().Shutdown();
         });
 
+#ifdef NL_LIB_SHARED
         SKSE::GetMessagingInterface()->RegisterListener(nullptr, [](SKSE::MessagingInterface::Message* a_msg) {
             if (std::strcmp(a_msg->sender, "SKSE") == 0)
             {
@@ -88,6 +89,7 @@ namespace NL::Controllers
                 break;
             }
         });
+#endif
     }
 
     void PublicAPIController::SetSettingsProvider(const NL::UI::Settings* a_settings)

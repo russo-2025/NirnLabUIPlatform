@@ -247,6 +247,7 @@ if(BUILD_AS_SHARED)
             #ARCHIVE_OUTPUT_DIRECTORY ${NL_UI_PATH}/archive
             #PDB_OUTPUT_DIRECTORY ${NL_UI_PATH}
     )
+    add_compile_definitions(NL_LIB_SHARED)
 else()
     add_library(${UIPlatformProjectName} STATIC ${UIPlatformProjectName_src})
 endif()

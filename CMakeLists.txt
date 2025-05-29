@@ -342,7 +342,7 @@ endif()
 
 # ============================ UIPlatformTest ============================
 if(BUILD_AS_SHARED)
-    if(BUILT_TEST_PBUILD_TEST_PLUGINLUGIN)
+    if(BUILD_TEST_PLUGIN)
         set(UIPlatformTestName "NirnLabUIPlatformTest")
 
         file(

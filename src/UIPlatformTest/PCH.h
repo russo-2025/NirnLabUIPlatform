@@ -16,6 +16,13 @@ using namespace std::string_literals;
 #include <SKSE/Impl/Stubs.h>
 #include <SKSE/SKSE.h>
 
+/* disable headers in Windows.h */
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#define NOMINMAX
+
+#include <windows.h>
+
 namespace logger = SKSE::log;
 using SKSE::stl::adjust_pointer;
 using SKSE::stl::not_null;

@@ -57,6 +57,7 @@ void InitCefSubprocessLog()
     spdlog::register_logger(std::move(log));
 }
 
+#ifdef SKYRIM_IS_AE
 extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     SKSE::PluginVersionData v{};
     v.pluginVersion = NL::UI::LibVersion::AS_INT;
@@ -67,6 +68,7 @@ extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     // v.UsesStructsPost629(true);
     return v;
 }();
+#endif
 
 extern "C" [[maybe_unused]] DLLEXPORT bool SKSEPlugin_Query(::SKSE::QueryInterface*, ::SKSE::PluginInfo* pluginInfo)
 {
@@ -107,7 +109,7 @@ extern "C" DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
     return true;
 }
 
-extern "C" NL_DLL_API NL::UI::IUIPlatformAPI* SKSEAPI NL::UI::RequestPluginAPI(const NL::UI::Version a_interfaceVersion, NL::UI::Settings* settings)
+extern "C" NL_DLL_API NL::UI::IUIPlatformAPI* SKSEAPI RequestPluginAPI(const NL::UI::Version a_interfaceVersion, NL::UI::Settings* settings)
 {
     logger::info("RequestPluginAPI called");
 

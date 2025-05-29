@@ -83,5 +83,67 @@ namespace NL::UI
         std::uint32_t apiVersion = NL::UI::APIVersion::AS_INT;
     };
 
-    extern "C" NL_DLL_API IUIPlatformAPI* SKSEAPI RequestPluginAPI(const Version a_interfaceVersion, Settings* settings);
+    typedef IUIPlatformAPI* (*RequestPluginApiFn)(const Version a_interfaceVersion, Settings* settings);
+
+    inline void AppendPathToEnv(std::filesystem::path p)
+    {
+        if (!p.is_absolute())
+            std::runtime_error("An absolute path expected: " + p.string());
+
+        if (!std::filesystem::is_directory(p))
+            std::runtime_error("Expected path to be a directory: " + p.string());
+
+        std::vector<wchar_t> path;
+        path.resize(GetEnvironmentVariableW(L"PATH", nullptr, 0));
+        GetEnvironmentVariableW(L"PATH", &path[0], path.size());
+
+        std::wstring newPath = path.data();
+        newPath += L';';
+        newPath += p.wstring();
+
+        if (!SetEnvironmentVariableW(L"PATH", newPath.data()))
+        {
+            std::runtime_error("Failed to modify PATH env: Error " +
+                               std::to_string(GetLastError()));
+        }
+
+        spdlog::info("env path added");
+    }
+
+    inline RequestPluginApiFn LoadNirnLabUIPlatform()
+    {
+
+        std::string dllName = NL::UI::LibVersion::PROJECT_NAME;
+        dllName += ".dll";
+
+        std::filesystem::path nirnLabDir = std::filesystem::current_path() / L"Data" / L"NirnLabUIPlatform";
+        std::filesystem::path nirnLabDll = nirnLabDir / dllName;
+
+        AppendPathToEnv(nirnLabDir);
+
+        if (!std::filesystem::exists(nirnLabDll))
+        {
+            spdlog::error("invalid dll in dir: `{}`", nirnLabDll.string());
+            SKSE::stl::report_and_fail("invalid dll in dir");
+        }
+
+        auto nirnLabUILib = LoadLibraryA(dllName.c_str());
+
+        if (!nirnLabUILib)
+        {
+            spdlog::error("could not load `{}`", dllName);
+            SKSE::stl::report_and_fail("could not load " + dllName);
+        }
+
+        RequestPluginApiFn fn = (RequestPluginApiFn)GetProcAddress(nirnLabUILib, "RequestPluginAPI");
+        if (!fn)
+        {
+            spdlog::error("could not locate the function RequestPluginAPI");
+            SKSE::stl::report_and_fail("could not locate the function RequestPluginAPI");
+        }
+
+        spdlog::info("function successfully loaded from {}", dllName);
+
+        return fn;
+    };
 }

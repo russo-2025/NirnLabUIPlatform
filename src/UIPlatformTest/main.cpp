@@ -1,26 +1,10 @@
 #include "PCH.h"
 #include "TestCases/TestCases.hpp"
 
-bool g_canUseAPI = false;
-
-extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
-    SKSE::PluginVersionData v{};
-    v.pluginVersion = 1;
-    v.PluginName(PLUGIN_NAME);
-    v.AuthorName("kkEngine"sv);
-    // v.CompatibleVersions({SKSE::RUNTIME_SSE_1_6_640, REL::Version(1, 6, 1170, 0)});
-    v.UsesAddressLibrary(true);
-    // v.UsesStructsPost629(true);
-    return v;
-}();
-
-extern "C" [[maybe_unused]] DLLEXPORT bool SKSEPlugin_Query(::SKSE::QueryInterface*, ::SKSE::PluginInfo* pluginInfo)
-{
-    pluginInfo->infoVersion = ::SKSE::PluginInfo::kVersion;
-    pluginInfo->name = NL::UI::LibVersion::PROJECT_NAME;
-    pluginInfo->version = NL::UI::LibVersion::AS_INT;
-    return true;
-}
+NL::UI::Settings defaultSettings;
+NL::UI::Version nirnLabUIPlatformVersion = {.libVersion = NL::UI::LibVersion::AS_INT, .apiVersion = NL::UI::APIVersion::AS_INT};
+NL::UI::RequestPluginApiFn RequestPluginApi = nullptr;
+NL::UI::IUIPlatformAPI* api = nullptr;
 
 void InitLog()
 {
@@ -47,7 +31,28 @@ void InitLog()
     spdlog::set_pattern("[%T.%e] [%^%l%$] : %v"s);
 }
 
-SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
+#ifdef SKYRIM_IS_AE
+extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
+    SKSE::PluginVersionData v{};
+    v.pluginVersion = 1;
+    v.PluginName(PLUGIN_NAME);
+    v.AuthorName("kkEngine"sv);
+    // v.CompatibleVersions({SKSE::RUNTIME_SSE_1_6_640, REL::Version(1, 6, 1170, 0)});
+    v.UsesAddressLibrary(true);
+    // v.UsesStructsPost629(true);
+    return v;
+}();
+#endif
+
+extern "C" [[maybe_unused]] DLLEXPORT bool SKSEPlugin_Query(::SKSE::QueryInterface*, ::SKSE::PluginInfo* pluginInfo)
+{
+    pluginInfo->infoVersion = ::SKSE::PluginInfo::kVersion;
+    pluginInfo->name = NL::UI::LibVersion::PROJECT_NAME;
+    pluginInfo->version = NL::UI::LibVersion::AS_INT;
+    return true;
+}
+
+extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_skse)
 {
     if (a_skse->IsEditor())
     {
@@ -61,62 +66,24 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* a_msg) {
         switch (a_msg->type)
         {
-        case SKSE::MessagingInterface::kPostPostLoad:
-            // All plugins are loaded. Request lib version.
-            SKSE::GetMessagingInterface()->Dispatch(NL::UI::APIMessageType::RequestVersion, nullptr, 0, NL::UI::LibVersion::PROJECT_NAME);
-            break;
         case SKSE::MessagingInterface::kInputLoaded:
-            if (g_canUseAPI)
+            RequestPluginApi = NL::UI::LoadNirnLabUIPlatform();
+            if (!RequestPluginApi)
             {
-                NL::UI::Settings defaultSettings;
-                // API version is ok. Request interface.
-                SKSE::GetMessagingInterface()->Dispatch(NL::UI::APIMessageType::RequestAPI, &defaultSettings, sizeof(defaultSettings), NL::UI::LibVersion::PROJECT_NAME);
+                spdlog::error("RequestPluginApi is nullptr");
+                SKSE::stl::report_and_fail("RequestPluginApi is nullptr");
             }
-            break;
-        default:
-            break;
-        }
-    });
-    SKSE::GetMessagingInterface()->RegisterListener(NL::UI::LibVersion::PROJECT_NAME, [](SKSE::MessagingInterface::Message* a_msg) {
-        spdlog::info("Received message({}) from \"{}\"", a_msg->type, a_msg->sender ? a_msg->sender : "nullptr");
-        switch (a_msg->type)
-        {
-        case NL::UI::APIMessageType::ResponseVersion: {
-            const auto versionInfo = reinterpret_cast<NL::UI::ResponseVersionMessage*>(a_msg->data);
-            spdlog::info("NirnLabUIPlatform version: {}.{}", NL::UI::LibVersion::GetMajorVersion(versionInfo->libVersion), NL::UI::LibVersion::GetMinorVersion(versionInfo->libVersion));
 
-            const auto majorAPIVersion = NL::UI::APIVersion::GetMajorVersion(versionInfo->apiVersion);
-            // If the major version is different from ours, then using the API may cause problems
-            if (majorAPIVersion != NL::UI::APIVersion::MAJOR)
+            api = RequestPluginApi(nirnLabUIPlatformVersion, &defaultSettings);
+
+            if (!api)
             {
-                g_canUseAPI = false;
-                spdlog::error("Can't using this API version of NirnLabUIPlatform. We have {}.{} and installed is {}.{}",
-                              NL::UI::APIVersion::MAJOR,
-                              NL::UI::APIVersion::MINOR,
-                              NL::UI::APIVersion::GetMajorVersion(versionInfo->apiVersion),
-                              NL::UI::APIVersion::GetMinorVersion(versionInfo->apiVersion));
+                spdlog::error("api is nullptr");
+                SKSE::stl::report_and_fail("api is nullptr");
             }
-            else
-            {
-                g_canUseAPI = true;
-                spdlog::info("API version is ok. We have {}.{} and installed is {}.{}",
-                             NL::UI::APIVersion::MAJOR,
-                             NL::UI::APIVersion::MINOR,
-                             NL::UI::APIVersion::GetMajorVersion(versionInfo->apiVersion),
-                             NL::UI::APIVersion::GetMinorVersion(versionInfo->apiVersion));
-            }
-            break;
-        }
-        case NL::UI::APIMessageType::ResponseAPI: {
-            auto api = reinterpret_cast<NL::UI::ResponseAPIMessage*>(a_msg->data)->API;
-            if (api == nullptr)
-            {
-                spdlog::error("API is nullptr");
-                break;
-            }
+
             NL::UI::TestCase::StartTests(api);
             break;
-        }
         default:
             break;
         }

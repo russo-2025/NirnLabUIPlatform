@@ -27,6 +27,7 @@
 #include <shlobj.h>
 #include <cassert>
 #include <filesystem>
+#include <functional>
 #include <span>
 #include <unordered_set>
 

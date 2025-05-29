@@ -62,11 +62,19 @@ extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     v.pluginVersion = NL::UI::LibVersion::AS_INT;
     v.PluginName(NL::UI::LibVersion::PROJECT_NAME);
     v.AuthorName("kkEngine"sv);
-    v.CompatibleVersions({SKSE::RUNTIME_SSE_1_6_640, REL::Version(1, 6, 1170, 0)});
+    // v.CompatibleVersions({SKSE::RUNTIME_SSE_1_6_640, REL::Version(1, 6, 1170, 0)});
     v.UsesAddressLibrary(true);
-    v.UsesStructsPost629(true);
+    // v.UsesStructsPost629(true);
     return v;
 }();
+
+extern "C" [[maybe_unused]] DLLEXPORT bool SKSEPlugin_Query(::SKSE::QueryInterface*, ::SKSE::PluginInfo* pluginInfo)
+{
+    pluginInfo->infoVersion = ::SKSE::PluginInfo::kVersion;
+    pluginInfo->name = NL::UI::LibVersion::PROJECT_NAME;
+    pluginInfo->version = NL::UI::LibVersion::AS_INT;
+    return true;
+}
 
 extern "C" DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
 {
@@ -97,4 +105,34 @@ extern "C" DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
     }
 
     return true;
+}
+
+extern "C" NL_DLL_API NL::UI::IUIPlatformAPI* SKSEAPI NL::UI::RequestPluginAPI(const NL::UI::Version a_interfaceVersion, NL::UI::Settings* settings)
+{
+    logger::info("RequestPluginAPI called");
+
+    auto& controller = NL::Controllers::PublicAPIController::GetSingleton();
+
+    auto ver = controller.GetVersionMessage();
+
+    logger::info("version {}.{} is expected, not {}.{}", ver->libVersion, ver->apiVersion, a_interfaceVersion.libVersion, a_interfaceVersion.apiVersion);
+
+    if (ver->libVersion != a_interfaceVersion.libVersion || ver->apiVersion != a_interfaceVersion.apiVersion)
+    {
+        logger::error("invalid version; pls update lib/headers;");
+        return nullptr;
+    }
+
+    logger::info("RequestPluginAPI end");
+
+    controller.SetSettingsProvider(settings);
+
+    auto& platformService = NL::Services::UIPlatformService::GetSingleton();
+    if (!platformService.IsInited() && !platformService.InitAndShowMenuWithSettings(controller.GetSettingsProvider()))
+    {
+        spdlog::error("{}: Can't response API because ui platform failed to init", NameOf(PublicAPIController));
+        return nullptr;
+    }
+
+    return controller.GetAPIMessage();
 }

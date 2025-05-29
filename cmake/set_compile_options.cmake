@@ -48,6 +48,11 @@ function(set_compile_options target)
 	        PUBLIC
                 SKYRIM_SUPPORT_AE
         )
+        target_compile_definitions(
+	        ${target}
+	        PRIVATE
+                NL_DLL_IMPL
+        )
     endif()
 endfunction()
 

@@ -5,6 +5,12 @@
 #include "IBrowser.h"
 #include "Settings.h"
 
+#ifdef NL_DLL_IMPL
+#define NL_DLL_API __declspec(dllexport) 
+#else
+#define NL_DLL_API __declspec(dllimport)
+#endif
+
 namespace NL::UI
 {
     class IUIPlatformAPI
@@ -63,7 +69,7 @@ namespace NL::UI
         /// <param name="a_callback"></param>
         virtual void RegisterOnShutdown(OnShutdownFunc_t a_callback) = 0;
     };
-
+    /*
     enum APIMessageType : std::uint32_t
     {
         /// <summary>
@@ -95,8 +101,8 @@ namespace NL::UI
     {
         NL::UI::Settings settings;
     };
-
-    struct ResponseVersionMessage
+    */
+    struct Version
     {
         /// <summary>
         /// NirnLabUIPlatform version
@@ -108,9 +114,12 @@ namespace NL::UI
         /// </summary>
         std::uint32_t apiVersion = NL::UI::APIVersion::AS_INT;
     };
-
+    /*
     struct ResponseAPIMessage
     {
         IUIPlatformAPI* API = nullptr;
     };
+    */
+
+    extern "C" NL_DLL_API IUIPlatformAPI* SKSEAPI RequestPluginAPI(const Version a_interfaceVersion, Settings* settings);
 }

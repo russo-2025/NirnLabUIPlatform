@@ -21,14 +21,14 @@ namespace NL::Controllers
         return mlMenu;
     }
 
-    NL::UI::ResponseVersionMessage* PublicAPIController::GetVersionMessage()
+    NL::UI::Version* PublicAPIController::GetVersionMessage()
     {
         return &m_rvMessage;
     }
 
-    NL::UI::ResponseAPIMessage* PublicAPIController::GetAPIMessage()
+    NL::UI::IUIPlatformAPI* PublicAPIController::GetAPIMessage()
     {
-        return &m_rAPIMessage;
+        return this;
     }
 
     void PublicAPIController::Init()
@@ -42,7 +42,7 @@ namespace NL::Controllers
             }
             NL::Services::UIPlatformService::GetSingleton().Shutdown();
         });
-
+        /*
         SKSE::GetMessagingInterface()->RegisterListener(nullptr, [](SKSE::MessagingInterface::Message* a_msg) {
             if (std::strcmp(a_msg->sender, "SKSE") == 0)
             {
@@ -88,6 +88,7 @@ namespace NL::Controllers
                 break;
             }
         });
+        */
     }
 
     void PublicAPIController::SetSettingsProvider(const NL::UI::Settings* a_settings)

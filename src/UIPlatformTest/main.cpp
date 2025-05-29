@@ -8,11 +8,19 @@ extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     v.pluginVersion = 1;
     v.PluginName(PLUGIN_NAME);
     v.AuthorName("kkEngine"sv);
-    v.CompatibleVersions({SKSE::RUNTIME_SSE_1_6_640, REL::Version(1, 6, 1170, 0)});
+    // v.CompatibleVersions({SKSE::RUNTIME_SSE_1_6_640, REL::Version(1, 6, 1170, 0)});
     v.UsesAddressLibrary(true);
-    v.UsesStructsPost629(true);
+    // v.UsesStructsPost629(true);
     return v;
 }();
+
+extern "C" [[maybe_unused]] DLLEXPORT bool SKSEPlugin_Query(::SKSE::QueryInterface*, ::SKSE::PluginInfo* pluginInfo)
+{
+    pluginInfo->infoVersion = ::SKSE::PluginInfo::kVersion;
+    pluginInfo->name = NL::UI::LibVersion::PROJECT_NAME;
+    pluginInfo->version = NL::UI::LibVersion::AS_INT;
+    return true;
+}
 
 void InitLog()
 {

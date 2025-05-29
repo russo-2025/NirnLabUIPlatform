@@ -5,6 +5,12 @@
 #include "IBrowser.h"
 #include "Settings.h"
 
+#ifdef NL_DLL_IMPL
+    #define NL_DLL_API __declspec(dllexport)
+#else
+    #define NL_DLL_API __declspec(dllimport)
+#endif
+
 namespace NL::UI
 {
     class IUIPlatformAPI
@@ -64,39 +70,7 @@ namespace NL::UI
         virtual void RegisterOnShutdown(OnShutdownFunc_t a_callback) = 0;
     };
 
-    enum APIMessageType : std::uint32_t
-    {
-        /// <summary>
-        /// Request library and api version. No data is needed.
-        /// Call after SKSE::MessagingInterface::kPostPostLoad
-        /// </summary>
-        RequestVersion = 2250,
-
-        /// <summary>
-        /// Response with version info. See "ResponseVersionMessage" struct.
-        /// You should check current API version (NL::UI::APIVersion::AS_INT) and version in response.
-        /// It is not guaranteed that the major versions are compatible. In this case, I recommend not using the library.
-        /// </summary>
-        ResponseVersion,
-
-        /// <summary>
-        /// Request API. First request initializes library. See "RequestAPIMessage" struct.
-        /// Call after SKSE::MessagingInterface::kInputLoaded
-        /// </summary>
-        RequestAPI,
-
-        /// <summary>
-        /// Response with API info. See "ResponseAPIMessage" struct.
-        /// </summary>
-        ResponseAPI,
-    };
-
-    struct RequestAPIMessage
-    {
-        NL::UI::Settings settings;
-    };
-
-    struct ResponseVersionMessage
+    struct Version
     {
         /// <summary>
         /// NirnLabUIPlatform version
@@ -109,8 +83,5 @@ namespace NL::UI
         std::uint32_t apiVersion = NL::UI::APIVersion::AS_INT;
     };
 
-    struct ResponseAPIMessage
-    {
-        IUIPlatformAPI* API = nullptr;
-    };
+    extern "C" NL_DLL_API IUIPlatformAPI* SKSEAPI RequestPluginAPI(const Version a_interfaceVersion, Settings* settings);
 }

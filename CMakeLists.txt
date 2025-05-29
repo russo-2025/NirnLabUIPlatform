@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.23)
 
 option(BUILD_AS_SHARED "Build as dll skse plugin else build as static lib" ON)
+option(BUILD_TEST_PLUGIN "build test plugin" OFF)
 
 # Version
-set(LIB_MAJOR_VERSION 2)
+set(LIB_MAJOR_VERSION 22)
 set(LIB_MINOR_VERSION 2)
-set(API_MAJOR_VERSION 2)
+set(API_MAJOR_VERSION 22)
 set(API_MINOR_VERSION 2)
 
 # VCPKG config
@@ -315,55 +316,57 @@ endif()
 
 # ============================ UIPlatformTest ============================
 if(BUILD_AS_SHARED)
-    set(UIPlatformTestName "NirnLabUIPlatformTest")
+    if(BUILD_TEST_PLUGIN)
+        set(UIPlatformTestName "NirnLabUIPlatformTest")
 
-    file(
-        COPY ${API_FOLDER_PATH}
-        DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatformTest/
-    )
+        file(
+            COPY ${API_FOLDER_PATH}
+            DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatformTest/
+        )
 
-    file(
-        GLOB_RECURSE
-        UIPlatformTestName_src
-            "src/UIPlatformTest/**.h"
-            "src/UIPlatformTest/**.hpp"
-            "src/UIPlatformTest/**.cpp"
-    )
-    source_group(
-        TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatformTest"
-        FILES ${UIPlatformTestName_src}
-    )
+        file(
+            GLOB_RECURSE
+            UIPlatformTestName_src
+                "src/UIPlatformTest/**.h"
+                "src/UIPlatformTest/**.hpp"
+                "src/UIPlatformTest/**.cpp"
+        )
+        source_group(
+            TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatformTest"
+            FILES ${UIPlatformTestName_src}
+        )
 
-    add_library(${UIPlatformTestName} SHARED ${UIPlatformTestName_src})
-    set_target_properties(
-        ${UIPlatformTestName}
-        PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY_DEBUG ${SKSE_PLUGIN_PATH}
-            RUNTIME_OUTPUT_DIRECTORY_RELEASE ${SKSE_PLUGIN_PATH}
-            LIBRARY_OUTPUT_DIRECTORY_DEBUG ${SKSE_PLUGIN_PATH}
-            LIBRARY_OUTPUT_DIRECTORY_RELEASE ${SKSE_PLUGIN_PATH}
-            #ARCHIVE_OUTPUT_DIRECTORY ${SKSE_PLUGIN_PATH}/archive
-            #PDB_OUTPUT_DIRECTORY ${SKSE_PLUGIN_PATH}
-    )
+        add_library(${UIPlatformTestName} SHARED ${UIPlatformTestName_src})
+        set_target_properties(
+            ${UIPlatformTestName}
+            PROPERTIES
+                RUNTIME_OUTPUT_DIRECTORY_DEBUG ${SKSE_PLUGIN_PATH}
+                RUNTIME_OUTPUT_DIRECTORY_RELEASE ${SKSE_PLUGIN_PATH}
+                LIBRARY_OUTPUT_DIRECTORY_DEBUG ${SKSE_PLUGIN_PATH}
+                LIBRARY_OUTPUT_DIRECTORY_RELEASE ${SKSE_PLUGIN_PATH}
+                #ARCHIVE_OUTPUT_DIRECTORY ${SKSE_PLUGIN_PATH}/archive
+                #PDB_OUTPUT_DIRECTORY ${SKSE_PLUGIN_PATH}
+        )
 
-    target_include_directories(
-        ${UIPlatformTestName}
-        PUBLIC
-            ${CMAKE_CURRENT_BINARY_DIR}/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatformTest
-    )
+        target_include_directories(
+            ${UIPlatformTestName}
+            PUBLIC
+                ${CMAKE_CURRENT_BINARY_DIR}/include
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/UIPlatformTest
+        )
 
-    set_compile_options(${UIPlatformTestName})
+        set_compile_options(${UIPlatformTestName})
 
-    target_precompile_headers(
-        ${UIPlatformTestName}
-        PRIVATE
-            "src/UIPlatformTest/PCH.h"
-    )
+        target_precompile_headers(
+            ${UIPlatformTestName}
+            PRIVATE
+                "src/UIPlatformTest/PCH.h"
+        )
 
-    target_link_libraries(
-        ${UIPlatformTestName}
-        PUBLIC
-            CommonLibSSE::CommonLibSSE
-    )
+        target_link_libraries(
+            ${UIPlatformTestName}
+            PUBLIC
+                CommonLibSSE::CommonLibSSE
+        )
+    endif()
 endif()

@@ -6,18 +6,18 @@ namespace NL::JS
 {
     class CEFFunctionQueue
     {
-      public:
+    public:
         struct Item
         {
             CefString objectName = "";
             CefString functionName = "";
         };
 
-      protected:
+    protected:
         std::mutex m_syncMutex;
         std::deque<std::shared_ptr<Item>> m_funcDeque;
 
-      public:
+    public:
         void AddFunction(const CefString& a_objectName, const CefString& a_functionName);
         void Clear();
         std::shared_ptr<Item> PopNext();

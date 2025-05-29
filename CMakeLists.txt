@@ -57,8 +57,6 @@ project(
     VERSION ${LIB_MAJOR_VERSION}.${LIB_MINOR_VERSION}
 )
 include(${CMAKE_SOURCE_DIR}/cmake/set_compile_options.cmake)
-include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
-
 set(CMAKE_GENERATOR_PLATFORM x64)
 
 string(REPLACE "/Ob2" "/Ob3" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
@@ -109,37 +107,107 @@ if(NOT DEFINED NL_UI_REL_PATH)
 endif()
 set(NL_UI_PATH ${OUTPUT_PATH}/${NL_UI_REL_PATH})
 
-# ============================ CEF ============================
-set(CEFSubprocessProjectName "CEFSubprocess")
-
-include(ExternalProject)
-
+# ============================ CEF LIB ============================
+add_library(cef INTERFACE)
 find_library(CEF_LIBRARY_DEBUG libcef_dll_wrapper)
 string(REPLACE "/debug/lib/" "/lib/" CEF_LIBRARY_RELEASE ${CEF_LIBRARY_DEBUG})
 find_path(CEF_INCLUDE_DIR include/cef_app.h)
 find_path(CEF_SHARE share/cef-prebuilt)
 set(CEF_SHARE "${CEF_SHARE}/share/cef-prebuilt")
-
-ExternalProject_Add(
-    CEFSubprocess_external
-    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/CEFSubprocess
-    CMAKE_ARGS
-        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
-        -DCMAKE_CONFIGURATION_TYPES=Release
-        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
-
-        -DCEF_LIBRARY_RELEASE=${CEF_LIBRARY_RELEASE}
-        -DCEF_INCLUDE_DIR=${CEF_INCLUDE_DIR}
-        -DCEF_SHARE=${CEF_SHARE}
-    BUILD_ALWAYS ON
-    BUILD_COMMAND cmake --build <BINARY_DIR> --config Release
-    INSTALL_COMMAND ""
+target_link_libraries(cef INTERFACE "$<IF:$<CONFIG:Debug>,${CEF_LIBRARY_DEBUG},${CEF_LIBRARY_RELEASE}>")
+target_link_libraries(cef INTERFACE "${CEF_SHARE}/$<CONFIG>/cef_sandbox.lib")
+target_link_libraries(cef INTERFACE "${CEF_SHARE}/$<CONFIG>/libcef.lib")
+target_include_directories(cef INTERFACE
+    $<BUILD_INTERFACE:${CEF_INCLUDE_DIR}>
 )
-add_executable(${CEFSubprocessProjectName} IMPORTED)
-set_target_properties(${CEFSubprocessProjectName} PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/cef_subprocess/bin/CEFSubprocess.exe
+set(cef_files_path "${CEF_SHARE}/$<IF:$<CONFIG:Debug>,Debug,Release>")
+add_custom_target(
+    CefLibraryFiles
+    # Cef files
+    COMMAND ${CMAKE_COMMAND} -E make_directory                                                  ${NL_UI_PATH}/
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/chrome_elf.dll                           ${NL_UI_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/d3dcompiler_47.dll                       ${NL_UI_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/libcef.dll                               ${NL_UI_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/libEGL.dll                               ${NL_UI_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/libGLESv2.dll                            ${NL_UI_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/snapshot_blob.bin                        ${NL_UI_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/v8_context_snapshot.bin                  ${NL_UI_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/vk_swiftshader.dll                       ${NL_UI_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/vk_swiftshader_icd.json                  ${NL_UI_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/vulkan-1.dll                             ${NL_UI_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/../Resources/icudtl.dat                  ${NL_UI_PATH}
+    COMMAND ${CMAKE_COMMAND} -E make_directory                                                  ${NL_UI_PATH}/CEF
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/../Resources/chrome_100_percent.pak      ${NL_UI_PATH}/CEF
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/../Resources/chrome_200_percent.pak      ${NL_UI_PATH}/CEF
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/../Resources/icudtl.dat                  ${NL_UI_PATH}/CEF
+    COMMAND ${CMAKE_COMMAND} -E copy ${cef_files_path}/../Resources/resources.pak               ${NL_UI_PATH}/CEF
+    COMMAND ${CMAKE_COMMAND} -E make_directory                                                  ${NL_UI_PATH}/CEF/locales
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${cef_files_path}/../Resources/locales           ${NL_UI_PATH}/CEF/locales
+    # Output Message
+    COMMENT "Copying cef files..." VERBATIM
 )
-add_dependencies(${CEFSubprocessProjectName} CEFSubprocess_external)
+
+# ============================ CEF Subprocess ============================
+set(CEFSubprocessProjectName "CEFSubprocess")
+
+file(
+    GLOB_RECURSE
+    CEFSubprocessProjectName_src 
+        "src/CEFSubprocess/**.h"
+        "src/CEFSubprocess/**.hpp"
+        "src/CEFSubprocess/**.cpp"
+)
+source_group(
+    TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/CEFSubprocess"
+    FILES ${CEFSubprocessProjectName_src}
+)
+
+add_executable(
+    ${CEFSubprocessProjectName}
+    WIN32
+        ${CEFSubprocessProjectName_src}
+)
+
+target_include_directories(
+    ${CEFSubprocessProjectName}
+    PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/CEFSubprocess
+)
+
+target_link_libraries(
+    ${CEFSubprocessProjectName}
+    PUBLIC
+        cef
+        spdlog::spdlog
+)
+
+set_compile_options(${CEFSubprocessProjectName})
+
+target_precompile_headers(
+    ${CEFSubprocessProjectName}
+    PRIVATE
+        "src/CEFSubprocess/PCH.h"
+)
+
+set_target_properties(
+    ${CEFSubprocessProjectName}
+    PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG ${NL_UI_PATH}
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE ${NL_UI_PATH}
+        LIBRARY_OUTPUT_DIRECTORY_DEBUG ${NL_UI_PATH}
+        LIBRARY_OUTPUT_DIRECTORY_RELEASE ${NL_UI_PATH}
+        #ARCHIVE_OUTPUT_DIRECTORY ${NL_UI_PATH}/archive
+        #PDB_OUTPUT_DIRECTORY ${NL_UI_PATH}
+)
+
+target_compile_definitions(
+    ${CEFSubprocessProjectName}
+    PRIVATE
+        CEF_SUBPROCESS_PROJECT_NAME="${CEFSubprocessProjectName}"
+)
+
+add_dependencies(${CEFSubprocessProjectName} CefLibraryFiles)
 
 # ============================ UIPlatform ============================
 set(UIPlatformProjectName "NirnLabUIPlatform")
@@ -336,7 +404,7 @@ endif()
 include(GNUInstallDirs)
 
 # Установка библиотек и экспорт
-install(TARGETS ${UIPlatformProjectName}
+install(TARGETS ${UIPlatformProjectName} cef
     EXPORT NirnLabUIPlatform-export
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

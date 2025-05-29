@@ -6,9 +6,9 @@
 #include "Settings.h"
 
 #ifdef NL_DLL_IMPL
-#define NL_DLL_API __declspec(dllexport) 
+    #define NL_DLL_API __declspec(dllexport)
 #else
-#define NL_DLL_API __declspec(dllimport)
+    #define NL_DLL_API __declspec(dllimport)
 #endif
 
 namespace NL::UI
@@ -69,39 +69,7 @@ namespace NL::UI
         /// <param name="a_callback"></param>
         virtual void RegisterOnShutdown(OnShutdownFunc_t a_callback) = 0;
     };
-    /*
-    enum APIMessageType : std::uint32_t
-    {
-        /// <summary>
-        /// Request library and api version. No data is needed.
-        /// Call after SKSE::MessagingInterface::kPostPostLoad
-        /// </summary>
-        RequestVersion = 2250,
 
-        /// <summary>
-        /// Response with version info. See "ResponseVersionMessage" struct.
-        /// You should check current API version (NL::UI::APIVersion::AS_INT) and version in response.
-        /// It is not guaranteed that the major versions are compatible. In this case, I recommend not using the library.
-        /// </summary>
-        ResponseVersion,
-
-        /// <summary>
-        /// Request API. First request initializes library. See "RequestAPIMessage" struct.
-        /// Call after SKSE::MessagingInterface::kInputLoaded
-        /// </summary>
-        RequestAPI,
-
-        /// <summary>
-        /// Response with API info. See "ResponseAPIMessage" struct.
-        /// </summary>
-        ResponseAPI,
-    };
-
-    struct RequestAPIMessage
-    {
-        NL::UI::Settings settings;
-    };
-    */
     struct Version
     {
         /// <summary>
@@ -114,12 +82,68 @@ namespace NL::UI
         /// </summary>
         std::uint32_t apiVersion = NL::UI::APIVersion::AS_INT;
     };
-    /*
-    struct ResponseAPIMessage
-    {
-        IUIPlatformAPI* API = nullptr;
-    };
-    */
 
-    extern "C" NL_DLL_API IUIPlatformAPI* SKSEAPI RequestPluginAPI(const Version a_interfaceVersion, Settings* settings);
+    typedef IUIPlatformAPI* (*RequestPluginApiFn)(const Version a_interfaceVersion, Settings* settings);
+
+    inline void AppendPathToEnv(std::filesystem::path p)
+    {
+        if (!p.is_absolute())
+            std::runtime_error("An absolute path expected: " + p.string());
+
+        if (!std::filesystem::is_directory(p))
+            std::runtime_error("Expected path to be a directory: " + p.string());
+
+        std::vector<wchar_t> path;
+        path.resize(GetEnvironmentVariableW(L"PATH", nullptr, 0));
+        GetEnvironmentVariableW(L"PATH", &path[0], path.size());
+
+        std::wstring newPath = path.data();
+        newPath += L';';
+        newPath += p.wstring();
+
+        if (!SetEnvironmentVariableW(L"PATH", newPath.data()))
+        {
+            std::runtime_error("Failed to modify PATH env: Error " +
+                               std::to_string(GetLastError()));
+        }
+
+        spdlog::info("env path added");
+    }
+
+    inline RequestPluginApiFn LoadNirnLabUIPlatform()
+    {
+
+        std::string dllName = NL::UI::LibVersion::PROJECT_NAME;
+        dllName += ".dll";
+
+        std::filesystem::path nirnLabDir = std::filesystem::current_path() / L"Data" / L"NirnLabUIPlatform";
+        std::filesystem::path nirnLabDll = nirnLabDir / dllName;
+
+        AppendPathToEnv(nirnLabDir);
+
+        if (!std::filesystem::exists(nirnLabDll))
+        {
+            spdlog::error("invalid dll in dir: `{}`", nirnLabDll.string());
+            SKSE::stl::report_and_fail("invalid dll in dir");
+        }
+
+        auto nirnLabUILib = LoadLibraryA(dllName.c_str());
+
+        if (!nirnLabUILib)
+        {
+            spdlog::error("could not load `{}`", dllName);
+            SKSE::stl::report_and_fail("could not load " + dllName);
+        }
+
+        RequestPluginApiFn fn = (RequestPluginApiFn)GetProcAddress(nirnLabUILib, "RequestPluginAPI");
+        if (!fn)
+        {
+            spdlog::error("could not locate the function RequestPluginAPI");
+            SKSE::stl::report_and_fail("could not locate the function RequestPluginAPI");
+        }
+
+        spdlog::info("function successfully loaded from {}", dllName);
+
+        return fn;
+    };
 }

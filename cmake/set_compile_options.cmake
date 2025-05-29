@@ -50,6 +50,12 @@ function(set_compile_options target)
                     SKYRIM_SUPPORT_AE
             )
         endif()
+        
+        target_compile_definitions(
+	        ${target}
+	        PRIVATE
+                NL_DLL_IMPL
+        )
     endif()
 endfunction()
 

@@ -151,35 +151,24 @@ static inline TFunc ExecLibFunc(const char* a_funcName)
     return func;
 }
 
-#ifdef SKYRIM_IS_AE
 extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     SKSE::PluginVersionData v{};
     v.pluginVersion = NL::UI::LibVersion::AS_INT;
     v.PluginName(NL::UI::LibVersion::PROJECT_NAME);
     v.AuthorName("kkEngine"sv);
-    v.CompatibleVersions({SKSE::RUNTIME_1_6_640, SKSE::RUNTIME_1_6_1130});
-    v.UsesAddressLibrary();
-    v.UsesUpdatedStructs(); // v.UsesStructsPost629(true);
+    // v.CompatibleVersions({SKSE::RUNTIME_SSE_1_6_640, REL::Version(1, 6, 1170, 0)});
+    v.UsesAddressLibrary(true);
+    // v.UsesStructsPost629(true);
     return v;
 }();
 
-// DLLEXPORT constinit SKSE::PluginVersionData SKSEPlugin_Version = GetPluginVersion(); ??
-#else
-
-extern "C" DLLEXPORT bool SKSEPlugin_Query(const SKSE::QueryInterface* skse, SKSE::PluginInfo* info)
+extern "C" [[maybe_unused]] DLLEXPORT bool SKSEPlugin_Query(::SKSE::QueryInterface*, ::SKSE::PluginInfo* pluginInfo)
 {
-    info->infoVersion = SKSE::PluginInfo::kVersion;
-    info->name = NL::UI::LibVersion::PROJECT_NAME;
-    info->version = NL::UI::LibVersion::AS_INT;
-
-    if (skse->IsEditor())
-    {
-        //_FATALERROR("loaded in editor, marking as incompatible");
-        return false;
-    }
+    pluginInfo->infoVersion = ::SKSE::PluginInfo::kVersion;
+    pluginInfo->name = NL::UI::LibVersion::PROJECT_NAME;
+    pluginInfo->version = NL::UI::LibVersion::AS_INT;
     return true;
 }
-#endif
 
 extern "C" void DLLEXPORT APIENTRY Initialize()
 {

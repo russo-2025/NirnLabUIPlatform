@@ -21,14 +21,14 @@ namespace NL::Controllers
         return mlMenu;
     }
 
-    NL::UI::ResponseVersionMessage* PublicAPIController::GetVersionMessage()
+    NL::UI::Version* PublicAPIController::GetVersionMessage()
     {
         return &m_rvMessage;
     }
 
-    NL::UI::ResponseAPIMessage* PublicAPIController::GetAPIMessage()
+    NL::UI::IUIPlatformAPI* PublicAPIController::GetAPIMessage()
     {
-        return &m_rAPIMessage;
+        return this;
     }
 
     void PublicAPIController::Init()
@@ -42,54 +42,6 @@ namespace NL::Controllers
             }
             NL::Services::UIPlatformService::GetSingleton().Shutdown();
         });
-
-#ifdef NL_LIB_SHARED
-        SKSE::GetMessagingInterface()->RegisterListener(nullptr, [](SKSE::MessagingInterface::Message* a_msg) {
-            if (std::strcmp(a_msg->sender, "SKSE") == 0)
-            {
-                return;
-            }
-
-            auto& controller = PublicAPIController::GetSingleton();
-            switch (a_msg->type)
-            {
-            case NL::UI::APIMessageType::RequestVersion:
-                spdlog::info("{}: Request version data from \"{}\"", NameOf(PublicAPIController), a_msg->sender);
-                SKSE::GetMessagingInterface()->Dispatch(NL::UI::APIMessageType::ResponseVersion,
-                                                        static_cast<void*>(controller.GetVersionMessage()),
-                                                        sizeof(*controller.GetVersionMessage()),
-                                                        a_msg->sender);
-                break;
-            case NL::UI::APIMessageType::RequestAPI: {
-                if (a_msg->data == nullptr || a_msg->dataLen != sizeof(NL::UI::RequestAPIMessage))
-                {
-                    spdlog::error("{}: INVALID request api from \"{}\". No data.", NameOf(PublicAPIController), a_msg->sender);
-                    return;
-                }
-                else
-                {
-                    spdlog::info("{}: Request api from \"{}\"", NameOf(PublicAPIController), a_msg->sender);
-                }
-
-                controller.SetSettingsProvider(static_cast<NL::UI::Settings*>(a_msg->data));
-
-                auto& platformService = NL::Services::UIPlatformService::GetSingleton();
-                if (!platformService.IsInited() && !platformService.InitAndShowMenuWithSettings(controller.GetSettingsProvider()))
-                {
-                    spdlog::error("{}: Can't response API because ui platform failed to init", NameOf(PublicAPIController));
-                    break;
-                }
-                SKSE::GetMessagingInterface()->Dispatch(NL::UI::APIMessageType::ResponseAPI,
-                                                        static_cast<void*>(controller.GetAPIMessage()),
-                                                        sizeof(*controller.GetAPIMessage()),
-                                                        a_msg->sender);
-                break;
-            }
-            default:
-                break;
-            }
-        });
-#endif
     }
 
     void PublicAPIController::SetSettingsProvider(const NL::UI::Settings* a_settings)

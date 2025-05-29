@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.23)
 
 option(BUILD_AS_SHARED "Build as dll skse plugin else build as static lib" ON)
 option(SKYRIM_SE "Legacy Skyrim SE (1.5) build" ON)
-option(BUILT_TEST_PLUGIN "build test plugin" OFF)
+option(BUILD_TEST_PLUGIN "build test plugin" OFF)
 
 if(SKYRIM_SE)
     set(SKYRIM_IS_AE OFF)
@@ -13,9 +13,9 @@ else()
 endif()
 
 # Version
-set(LIB_MAJOR_VERSION 2)
+set(LIB_MAJOR_VERSION 22)
 set(LIB_MINOR_VERSION 2)
-set(API_MAJOR_VERSION 2)
+set(API_MAJOR_VERSION 22)
 set(API_MINOR_VERSION 2)
 
 # VCPKG config
@@ -245,7 +245,6 @@ if(BUILD_AS_SHARED)
             #ARCHIVE_OUTPUT_DIRECTORY ${NL_UI_PATH}/archive
             #PDB_OUTPUT_DIRECTORY ${NL_UI_PATH}
     )
-    add_compile_definitions(NL_LIB_SHARED)
 else()
     add_library(${UIPlatformProjectName} STATIC ${UIPlatformProjectName_src})
 endif()
@@ -343,7 +342,7 @@ endif()
 
 # ============================ UIPlatformTest ============================
 if(BUILD_AS_SHARED)
-    if(BUILT_TEST_PLUGIN)
+    if(BUILT_TEST_PBUILD_TEST_PLUGINLUGIN)
         set(UIPlatformTestName "NirnLabUIPlatformTest")
 
         file(

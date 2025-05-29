@@ -44,8 +44,7 @@ namespace NL::Controllers
         void RegisterOnShutdown(OnShutdownFunc_t a_callback) override;
 
     protected:
-        NL::UI::ResponseVersionMessage m_rvMessage{NL::UI::LibVersion::AS_INT, NL::UI::APIVersion::AS_INT};
-        NL::UI::ResponseAPIMessage m_rAPIMessage{this};
+        NL::UI::Version m_rvMessage{NL::UI::LibVersion::AS_INT, NL::UI::APIVersion::AS_INT};
 
         std::atomic<BrowserRefHandle> m_currentRefHandle{1};
 
@@ -58,8 +57,8 @@ namespace NL::Controllers
         std::shared_ptr<NL::Menus::MultiLayerMenu> GetMultiLayerMenu();
 
     public:
-        NL::UI::ResponseVersionMessage* GetVersionMessage();
-        NL::UI::ResponseAPIMessage* GetAPIMessage();
+        NL::UI::Version* GetVersionMessage();
+        NL::UI::IUIPlatformAPI* GetAPIMessage();
 
         void Init();
         void SetSettingsProvider(const NL::UI::Settings* a_settings);

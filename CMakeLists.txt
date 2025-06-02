@@ -414,7 +414,7 @@ install(TARGETS ${UIPlatformProjectName} cef
 if(BUILD_AS_SHARED AND TARGET ${UIPluginProjectName})
     install(
         TARGETS ${UIPluginProjectName}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}/NirnLabUIPlatform/Data/SKSE/Plugins
     )
 endif()
 
@@ -432,6 +432,7 @@ install(
     DESTINATION
         ${CMAKE_INSTALL_BINDIR}/NirnLabUIPlatform/Data/NirnLabUIPlatform
     FILES_MATCHING
+        PATTERN "*.exe"
         PATTERN "*.dll"
         PATTERN "*.pak"
         PATTERN "*.dat"

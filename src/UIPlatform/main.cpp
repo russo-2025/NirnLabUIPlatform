@@ -120,11 +120,10 @@ extern "C" NL_DLL_API NL::UI::IUIPlatformAPI* SKSEAPI RequestPluginAPI(const NL:
 
     auto ver = controller.GetVersionMessage();
 
-    logger::info("version {}.{} is expected, not {}.{}", ver->libVersion, ver->apiVersion, a_interfaceVersion.libVersion, a_interfaceVersion.apiVersion);
-
     if (ver->libVersion != a_interfaceVersion.libVersion || ver->apiVersion != a_interfaceVersion.apiVersion)
     {
         logger::error("invalid version; pls update lib/headers;");
+        logger::error("version {}.{} is expected, not {}.{}", ver->libVersion, ver->apiVersion, a_interfaceVersion.libVersion, a_interfaceVersion.apiVersion);
         return nullptr;
     }
 

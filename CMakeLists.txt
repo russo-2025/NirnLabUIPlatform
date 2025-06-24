@@ -30,16 +30,14 @@ if(NOT EXISTS ${CMAKE_TOOLCHAIN_FILE})
 	else()
 		message(FATAL_ERROR "invalid VCPKG_ROOT")
 	endif()
-	
-    set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/overlay_ports")
-
-
-	# install deps from vcpkg.json
-	include($ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
 endif()
 
 message("CMAKE_TOOLCHAIN_FILE = ${CMAKE_TOOLCHAIN_FILE}")
+	
+set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/overlay_ports")
 
+# install deps from vcpkg.json
+include(${CMAKE_TOOLCHAIN_FILE})
 
 # Includes pdb files in release mode
 #set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")

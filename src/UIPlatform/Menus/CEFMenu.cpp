@@ -66,11 +66,6 @@ namespace NL::Menus
 
 #pragma region NL::Render::IRenderLayer
 
-    void CEFMenu::FlushCopy()
-    {
-        m_cefRenderLayer->FlushCopy();
-    }
-
     void CEFMenu::Draw()
     {
         m_cefRenderLayer->Draw();

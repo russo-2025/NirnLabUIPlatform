@@ -114,11 +114,6 @@ namespace NL::Menus
             return;
         }
 
-        for (const auto& subMenu : m_menuMap)
-        {
-            subMenu.second->FlushCopy();
-        }
-
         m_renderData.spriteBatch->Begin(::DirectX::SpriteSortMode_Deferred, m_renderData.commonStates->NonPremultiplied());
         m_renderData.drawLock.Lock();
         try

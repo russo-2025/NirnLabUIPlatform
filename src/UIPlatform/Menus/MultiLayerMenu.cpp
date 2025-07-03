@@ -1,4 +1,4 @@
-#include "MultiLayerMenu.h"
+﻿#include "MultiLayerMenu.h"
 
 namespace NL::Menus
 {
@@ -114,6 +114,10 @@ namespace NL::Menus
             return;
         }
 
+        // fix enb
+        ID3D11Buffer* vsConstantBuffer = nullptr;
+        m_renderData.deviceContext->VSGetConstantBuffers(0, 1, &vsConstantBuffer);
+
         m_renderData.spriteBatch->Begin(::DirectX::SpriteSortMode_Deferred, m_renderData.commonStates->NonPremultiplied());
         m_renderData.drawLock.Lock();
         try
@@ -130,6 +134,12 @@ namespace NL::Menus
         }
         m_renderData.spriteBatch->End();
         m_renderData.drawLock.Unlock();
+
+        // fix enb
+        m_renderData.deviceContext->VSSetConstantBuffers(0, 1, &vsConstantBuffer);
+
+        if (vsConstantBuffer)
+            vsConstantBuffer->Release();
     }
 
     RE::UI_MESSAGE_RESULTS MultiLayerMenu::ProcessMessage(RE::UIMessage& a_message)

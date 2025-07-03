@@ -6,11 +6,11 @@ namespace NL::Render
 {
     class IRenderLayer
     {
-      protected:
+    protected:
         bool m_isVisible = true;
         RenderData* m_renderData = nullptr;
 
-      public:
+    public:
         virtual ~IRenderLayer() = default;
 
         virtual void Init(RenderData* a_renderData)
@@ -29,6 +29,7 @@ namespace NL::Render
             return m_isVisible;
         }
 
-        virtual void Draw(){};
+        virtual void FlushCopy() {};
+        virtual void Draw() {};
     };
 }

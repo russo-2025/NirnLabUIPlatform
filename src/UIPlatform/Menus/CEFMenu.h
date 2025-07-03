@@ -37,6 +37,7 @@ namespace NL::Menus
         std::shared_ptr<NL::CEF::IBrowser> GetBrowser();
 
         // NL::Render::IRenderLayer
+        void FlushCopy() override;
         void Draw() override;
         void Init(NL::Render::RenderData* a_renderData) override;
         void SetVisible(bool a_visible) override;

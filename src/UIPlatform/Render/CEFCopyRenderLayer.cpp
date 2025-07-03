@@ -1,4 +1,4 @@
-#include "CEFCopyRenderLayer.h"
+﻿#include "CEFCopyRenderLayer.h"
 
 namespace NL::Render
 {
@@ -33,9 +33,9 @@ namespace NL::Render
         textDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         textDesc.SampleDesc.Count = 1;
         textDesc.SampleDesc.Quality = 0;
-        textDesc.Usage = D3D11_USAGE_DYNAMIC;
+        textDesc.Usage = D3D11_USAGE_DEFAULT;
         textDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-        textDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        textDesc.CPUAccessFlags = 0;
         textDesc.MiscFlags = 0;
 
         auto hResult = m_renderData->device->CreateTexture2D(&textDesc, nullptr, m_cefTexture.ReleaseAndGetAddressOf());
@@ -63,8 +63,7 @@ namespace NL::Render
         }
     }
 
-    const inline ::DirectX::SimpleMath::Vector2 _Cef_Menu_Draw_Vector = {0.f, 0.f};
-    void CEFCopyRenderLayer::Draw()
+    void CEFCopyRenderLayer::FlushCopy()
     {
         if (m_isVisible && m_cefSRV != nullptr)
         {
@@ -78,7 +77,14 @@ namespace NL::Render
             {
                 spdlog::error("{}: failed FinishCommandList(), code {:X}", NameOf(CEFCopyRenderLayer), result);
             }
+        }
+    }
 
+    const inline ::DirectX::SimpleMath::Vector2 _Cef_Menu_Draw_Vector = {0.f, 0.f};
+    void CEFCopyRenderLayer::Draw()
+    {
+        if (m_isVisible && m_cefSRV != nullptr)
+        {
             m_renderData->spriteBatch->Draw(
                 m_cefSRV.Get(),
                 _Cef_Menu_Draw_Vector,
@@ -128,7 +134,7 @@ namespace NL::Render
 
         m_deferredContext->FinishCommandList(false, nullptr);
         m_deferredContext->CopyResource(m_cefTexture.Get(), tex);
-
+        m_deferredContext->ClearState();
         m_renderData->drawLock.Unlock();
 
         tex->Release();

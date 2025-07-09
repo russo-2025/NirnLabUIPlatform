@@ -28,7 +28,7 @@ void InitLog()
     log->flush_on(level);
 
     spdlog::set_default_logger(std::move(log));
-    spdlog::set_pattern("[%T.%e] [%^%l%$] : %v"s);
+    spdlog::set_pattern("[%T.%e] [%t] [%^%l%$] : %v"s);
 }
 
 #ifdef SKYRIM_IS_AE

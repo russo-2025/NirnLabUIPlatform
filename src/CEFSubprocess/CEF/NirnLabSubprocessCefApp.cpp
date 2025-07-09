@@ -15,7 +15,7 @@ namespace NL::CEF
 
         logger->set_level(level);
         logger->flush_on(level);
-        logger->set_pattern("[%T.%e] [%^%l%$] : %v"s);
+        logger->set_pattern("[%T.%e] [%t] [%^%l%$] : %v"s);
 
         spdlog::set_default_logger(logger);
     }

@@ -37,8 +37,9 @@ namespace NL::Menus
         m_renderData.height = textDesc.Height;
 
         // IMenu props
-        depthPriority = 8;
+        depthPriority = 12;
         menuFlags.set(RE::UI_MENU_FLAGS::kAlwaysOpen);
+        menuFlags.set(RE::UI_MENU_FLAGS::kAllowSaving);
         menuFlags.set(RE::UI_MENU_FLAGS::kCustomRendering);
         menuFlags.set(RE::UI_MENU_FLAGS::kAssignCursorToRenderer);
         inputContext = Context::kNone;

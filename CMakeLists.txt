@@ -42,8 +42,8 @@ message("CMAKE_TOOLCHAIN_FILE = ${CMAKE_TOOLCHAIN_FILE}")
 
 
 # Includes pdb files in release mode
-#set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
-#set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG /OPT:REF /OPT:ICF")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
+set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG /OPT:REF /OPT:ICF")
 
 # Options
 set(CMAKE_CXX_STANDARD 20)
@@ -276,6 +276,12 @@ target_link_libraries(
         cef
         nlohmann_json::nlohmann_json
 )
+
+# Detours
+find_path(DETOURS_INCLUDE_DIRS "detours/detours.h")
+find_library(DETOURS_LIBRARY detours REQUIRED)
+target_include_directories(${UIPlatformProjectName} PRIVATE ${DETOURS_INCLUDE_DIRS})
+target_link_libraries(${UIPlatformProjectName} PRIVATE ${DETOURS_LIBRARY})
 
 target_compile_definitions(
     ${UIPlatformProjectName}

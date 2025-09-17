@@ -17,7 +17,8 @@
 		"palsigslot",
 		"spdlog",
 		"cef-prebuilt",
-		"nlohmann-json"
+		"nlohmann-json",
+		"detours"
 	],
 	"features": {
 		"commonlib-se": {

@@ -17,10 +17,25 @@ namespace NL::Render
 
       protected:
         HANDLE m_sharedTextureHandle = nullptr;
-        Microsoft::WRL::ComPtr<ID3D11Texture2D> m_cefTexture;
-        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_cefSRV;
+
+        // ������� �����������: write/read
+        Microsoft::WRL::ComPtr<ID3D11Texture2D> m_cefTex[2];
+        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_cefSRV[2];
+        std::atomic<uint32_t> m_idx{0}; // ������� read-������ [0|1]
+
+        // ����������/���������
         Microsoft::WRL::ComPtr<ID3D11Device1> m_device1 = nullptr;
-        Microsoft::WRL::ComPtr<ID3D11DeviceContext> m_deferredContext;
+        Microsoft::WRL::ComPtr<ID3D11DeviceContext> m_deferredContext = nullptr; // ��� deferred
+
+        // SpriteBatch, ����������� � DEFERRED-���������
+        std::unique_ptr<DirectX::SpriteBatch> m_spriteBatchDeferred;
+
+        // �������� ������/������ ��� ����������������� ����� ��� ��������� ������� ��������
+        D3D11_TEXTURE2D_DESC m_cachedDesc{};
+        bool m_targetsReady = false;
+
+    private:
+        void EnsureTargetsLike(ID3D11Texture2D* src);
 
       public:
         ~CEFCopyRenderLayer() override = default;

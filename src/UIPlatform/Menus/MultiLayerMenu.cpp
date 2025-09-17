@@ -1,4 +1,4 @@
-﻿#include "MultiLayerMenu.h"
+#include "MultiLayerMenu.h"
 
 namespace NL::Menus
 {
@@ -111,36 +111,14 @@ namespace NL::Menus
     {
         std::lock_guard<std::mutex> lock(m_mapMenuMutex);
         if (m_menuMap.empty())
-        {
             return;
-        }
 
-        // fix enb
-        ID3D11Buffer* vsConstantBuffer = nullptr;
-        m_renderData.deviceContext->VSGetConstantBuffers(0, 1, &vsConstantBuffer);
-
-        m_renderData.spriteBatch->Begin(::DirectX::SpriteSortMode_Deferred, m_renderData.commonStates->NonPremultiplied());
-        m_renderData.drawLock.Lock();
-        try
+        // Никаких Begin/End на m_renderData.spriteBatch (он на immediate)
+        // Каждый саб-рендер сам соберёт deferred-командлист и выполнит его с RestoreContextState=TRUE
+        for (const auto& subMenu : m_menuMap)
         {
-            for (const auto& subMenu : m_menuMap)
-            {
-                subMenu.second->Draw();
-            }
-            m_renderData.deviceContext->Flush1(D3D11_CONTEXT_TYPE::D3D11_CONTEXT_TYPE_COPY, nullptr);
+            subMenu.second->Draw();
         }
-        catch (const std::exception& err)
-        {
-            m_logger->error("{}: {}", NameOf(MultiLayerMenu), err.what());
-        }
-        m_renderData.spriteBatch->End();
-        m_renderData.drawLock.Unlock();
-
-        // fix enb
-        m_renderData.deviceContext->VSSetConstantBuffers(0, 1, &vsConstantBuffer);
-
-        if (vsConstantBuffer)
-            vsConstantBuffer->Release();
     }
 
     RE::UI_MESSAGE_RESULTS MultiLayerMenu::ProcessMessage(RE::UIMessage& a_message)

@@ -44,14 +44,10 @@ namespace NL::Render
         if (!m_isVisible || !m_targetsReady || !m_renderData)
             return;
 
-        const uint32_t readIdx = (m_idx.load(std::memory_order_acquire) & 1u);
+        const uint32_t readIdx = (m_renderData->cefReadIdx.load(std::memory_order_acquire) & 1u);
 
         m_renderData->spriteBatchDeferred->Draw(
-            m_cefSRV[readIdx].Get(),
-            _Cef_Menu_Draw_Vector,
-            nullptr,
-            DirectX::Colors::White,
-            0.0f);
+            m_cefSRV[readIdx].Get(), _Cef_Menu_Draw_Vector, nullptr, DirectX::Colors::White, 0.0f);
     }
 
     void CEFCopyRenderLayer::GetViewRect(CefRefPtr<CefBrowser> browser, CefRect& rect)
@@ -111,26 +107,21 @@ namespace NL::Render
             }
         }
 
-        Microsoft::WRL::ComPtr<ID3D11CommandList> copyCL;
         if (canCopy)
         {
+            Microsoft::WRL::ComPtr<ID3D11CommandList> copyCL;
             m_copyCtx->CopyResource(m_cefTex[writeIdx].Get(), srcTex);
             if (km)
                 km->ReleaseSync(0);
+
             if (SUCCEEDED(m_copyCtx->FinishCommandList(FALSE, copyCL.GetAddressOf())) && copyCL)
             {
-                // Публикуем новый индекс ТОЛЬКО после помещения CL в очередь
-                if (!m_renderData->pendingCopy->push(std::move(copyCL)))
-                {
-                    // очередь переполнена → тихо дроп или лог
-                }
-                else
-                {
-                    m_idx.store(writeIdx, std::memory_order_release);
-                }
+                CopyPacket pkt;
+                pkt.cl = std::move(copyCL);
+                pkt.writeIdx = writeIdx & 1u;
+                pkt.generation = m_renderData->cefGeneration.load(std::memory_order_relaxed);
+                m_renderData->pendingCopy->push(std::move(pkt));
             }
-            // Чистим состояние локального deferred-контекста под следующую запись
-            // (можно не делать: FinishCommandList сбрасывает внутренние буферы)
         }
     }
 

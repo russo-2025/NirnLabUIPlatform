@@ -1,4 +1,4 @@
-#include "MultiLayerMenu.h"
+﻿#include "MultiLayerMenu.h"
 
 namespace NL::Menus
 {
@@ -187,10 +187,15 @@ namespace NL::Menus
 
         // 2) Выполняем ВСЕ накопившиеся копии с восстановлением состояния
         {
-            Microsoft::WRL::ComPtr<ID3D11CommandList> cl;
-            while (m_renderData.pendingCopy->pop(cl))
+            NL::Render::CopyPacket pkt;
+            while (m_renderData.pendingCopy->pop(pkt))
             {
-                imm->ExecuteCommandList(cl.Get(), TRUE); // восстановить состояние вокруг копии
+                // Дроп пакетов старой конфигурации (после ресайза/формата)
+                if (pkt.generation != m_renderData.cefGeneration.load(std::memory_order_acquire))
+                    continue;
+
+                m_renderData.immCtx->ExecuteCommandList(pkt.cl.Get(), TRUE); // восстановить state
+                m_renderData.cefReadIdx.store(pkt.writeIdx, std::memory_order_release);
             }
         }
 

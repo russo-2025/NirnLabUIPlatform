@@ -1,4 +1,4 @@
-#include "MultiLayerMenu.h"
+﻿#include "MultiLayerMenu.h"
 
 namespace NL::Menus
 {
@@ -7,34 +7,39 @@ namespace NL::Menus
         ThrowIfNullptr(MultiLayerMenu, a_logger);
         m_logger = a_logger;
 
-        // Fill render data
-        const auto device = reinterpret_cast<ID3D11Device*>(RE::BSGraphics::Renderer::GetDevice());
+        auto* device = reinterpret_cast<ID3D11Device*>(RE::BSGraphics::Renderer::GetDevice());
         ThrowIfNullptr(MultiLayerMenu, device);
 
-        HRESULT hResult = 0;
-        ID3D11Device3* device3 = nullptr;
-        hResult = device->QueryInterface(__uuidof(ID3D11Device3), (void**)&device3);
-        if (FAILED(hResult))
+        Microsoft::WRL::ComPtr<ID3D11Device3> device3;
+        HRESULT hr = device->QueryInterface(IID_PPV_ARGS(&device3));
+        if (FAILED(hr))
         {
-            const auto errorMsg = fmt::format("{}: failed to QueryInterface() with {} and result {}", NameOf(MultiLayerMenu), NameOf(ID3D11Device1), hResult);
-            throw std::runtime_error(errorMsg);
+            throw std::runtime_error("MultiLayerMenu: failed QI(ID3D11Device3)");
         }
 
-        ID3D11DeviceContext3* immediateContext = nullptr;
-        device3->GetImmediateContext3(&immediateContext);
-        ThrowIfNullptr(MultiLayerMenu, immediateContext);
+        Microsoft::WRL::ComPtr<ID3D11DeviceContext3> imm3;
+        device3->GetImmediateContext3(&imm3);
+        ThrowIfNullptr(MultiLayerMenu, imm3.Get());
 
         const auto nativeMenuRenderData = RE::BSGraphics::Renderer::GetRendererData()->renderTargets[RE::RENDER_TARGETS::kMENUBG];
-        D3D11_TEXTURE2D_DESC textDesc;
-        nativeMenuRenderData.texture->GetDesc(&textDesc);
+        D3D11_TEXTURE2D_DESC td{};
+        nativeMenuRenderData.texture->GetDesc(&td);
 
         m_renderData.device = device;
-        m_renderData.deviceContext = immediateContext;
-        m_renderData.spriteBatch = std::make_shared<::DirectX::SpriteBatch>(immediateContext);
-        m_renderData.commonStates = std::make_shared<::DirectX::CommonStates>(device);
+        m_renderData.deviceContext = imm3.Get();
+        m_renderData.commonStates = std::make_shared<DirectX::CommonStates>(device);
         m_renderData.texture = nativeMenuRenderData.SRV;
-        m_renderData.width = textDesc.Width;
-        m_renderData.height = textDesc.Height;
+        m_renderData.width = td.Width;
+        m_renderData.height = td.Height;
+
+        Microsoft::WRL::ComPtr<ID3D11DeviceContext> defCtx;
+        hr = device->CreateDeferredContext(0, defCtx.GetAddressOf());
+        if (FAILED(hr))
+        {
+            throw std::runtime_error("MultiLayerMenu: failed CreateDeferredContext");
+        }
+        m_renderData.deferredContext = defCtx;
+        m_renderData.spriteBatchDeferred = std::make_unique<DirectX::SpriteBatch>(defCtx.Get());
 
         // IMenu props
         depthPriority = 12;
@@ -113,12 +118,66 @@ namespace NL::Menus
         if (m_menuMap.empty())
             return;
 
-        // Никаких Begin/End на m_renderData.spriteBatch (он на immediate)
-        // Каждый саб-рендер сам соберёт deferred-командлист и выполнит его с RestoreContextState=TRUE
-        for (const auto& subMenu : m_menuMap)
+        auto* imm = m_renderData.deviceContext;
+        auto* def = m_renderData.deferredContext.Get();
+
+        m_renderData.drawLock.Lock();
+
+        Microsoft::WRL::ComPtr<ID3D11RenderTargetView> rtv;
+        Microsoft::WRL::ComPtr<ID3D11DepthStencilView> dsv;
+        imm->OMGetRenderTargets(1, rtv.GetAddressOf(), dsv.GetAddressOf());
+
+        UINT vpCount = 0;
+        imm->RSGetViewports(&vpCount, nullptr);
+        D3D11_VIEWPORT vps[8]{};
+        if (vpCount > 0 && vpCount <= 8)
         {
-            subMenu.second->Draw();
+            imm->RSGetViewports(&vpCount, vps);
         }
+        else
+        {
+            vpCount = 1;
+            vps[0].TopLeftX = 0.0f;
+            vps[0].TopLeftY = 0.0f;
+            vps[0].Width = static_cast<float>(m_renderData.width);
+            vps[0].Height = static_cast<float>(m_renderData.height);
+            vps[0].MinDepth = 0.0f;
+            vps[0].MaxDepth = 1.0f;
+        }
+
+        if (!rtv)
+        {
+            m_renderData.drawLock.Unlock();
+            return;
+        }
+
+        ID3D11RenderTargetView* rtvPtr = rtv.Get();
+        def->OMSetRenderTargets(1, &rtvPtr, dsv.Get());
+        def->RSSetViewports(vpCount, vps);
+
+        m_renderData.spriteBatchDeferred->Begin(
+            DirectX::SpriteSortMode_Deferred,
+            m_renderData.commonStates->AlphaBlend());
+
+        for (const auto& kv : m_menuMap)
+        {
+            kv.second->Draw();
+        }
+
+        m_renderData.spriteBatchDeferred->End();
+
+        Microsoft::WRL::ComPtr<ID3D11CommandList> cl;
+        const HRESULT hr = def->FinishCommandList(FALSE, &cl);
+        if (SUCCEEDED(hr) && cl)
+        {
+            imm->ExecuteCommandList(cl.Get(), TRUE);
+        }
+        else
+        {
+            spdlog::error("MultiLayerMenu::PostDisplay: FinishCommandList failed, hr={:X}", hr);
+        }
+
+        m_renderData.drawLock.Unlock();
     }
 
     RE::UI_MESSAGE_RESULTS MultiLayerMenu::ProcessMessage(RE::UIMessage& a_message)

@@ -1,4 +1,4 @@
-﻿#include "MultiLayerMenu.h"
+#include "MultiLayerMenu.h"
 
 namespace NL::Menus
 {
@@ -7,41 +7,82 @@ namespace NL::Menus
         ThrowIfNullptr(MultiLayerMenu, a_logger);
         m_logger = a_logger;
 
-        auto* device = reinterpret_cast<ID3D11Device*>(RE::BSGraphics::Renderer::GetDevice());
-        ThrowIfNullptr(MultiLayerMenu, device);
+        // 1) Получаем ID3D11Device* из движка и поднимаем его в ComPtr с корректным AddRef.
+        ID3D11Device* rawDevice = reinterpret_cast<ID3D11Device*>(RE::BSGraphics::Renderer::GetDevice());
+        ThrowIfNullptr(MultiLayerMenu, rawDevice);
 
-        Microsoft::WRL::ComPtr<ID3D11Device3> device3;
-        HRESULT hr = device->QueryInterface(IID_PPV_ARGS(&device3));
+        Microsoft::WRL::ComPtr<ID3D11Device> device;
+        auto hr = rawDevice->QueryInterface(IID_PPV_ARGS(&device));
         if (FAILED(hr))
         {
-            throw std::runtime_error("MultiLayerMenu: failed QI(ID3D11Device3)");
+            std::string msg = fmt::format("failed {}: QueryInterface<ID3D11Device> hr={:X}", NameOf(MultiLayerMenu), hr);
+            spdlog::error(msg);
+            throw std::runtime_error(msg);
+        }
+
+        // Необязательно, но полезно иметь ID3D11Device1
+        Microsoft::WRL::ComPtr<ID3D11Device1> device1;
+        device.As(&device1);
+
+        // 2) Берём immediate-контекст уровня 11.3 (как у вас было).
+        Microsoft::WRL::ComPtr<ID3D11Device3> device3;
+        hr = device->QueryInterface(IID_PPV_ARGS(&device3));
+
+        if (FAILED(hr))
+        {
+            std::string msg = fmt::format("failed {}: QueryInterface<ID3D11Device3> hr={:X}", NameOf(MultiLayerMenu), hr);
+            spdlog::error(msg);
+            throw std::runtime_error(msg);
         }
 
         Microsoft::WRL::ComPtr<ID3D11DeviceContext3> imm3;
         device3->GetImmediateContext3(&imm3);
         ThrowIfNullptr(MultiLayerMenu, imm3.Get());
 
-        const auto nativeMenuRenderData = RE::BSGraphics::Renderer::GetRendererData()->renderTargets[RE::RENDER_TARGETS::kMENUBG];
-        D3D11_TEXTURE2D_DESC td{};
-        nativeMenuRenderData.texture->GetDesc(&td);
+        // 3) Достаём размеры «менюшного» RT и SRV.
+        const auto nativeMenuRenderData =
+            RE::BSGraphics::Renderer::GetRendererData()->renderTargets[RE::RENDER_TARGETS::kMENUBG];
 
-        m_renderData.device = device;
-        m_renderData.deviceContext = imm3.Get();
-        m_renderData.commonStates = std::make_shared<DirectX::CommonStates>(device);
-        m_renderData.texture = nativeMenuRenderData.SRV;
+        D3D11_TEXTURE2D_DESC td{};
+        if (nativeMenuRenderData.texture)
+        {
+            nativeMenuRenderData.texture->GetDesc(&td);
+        }
+        else
+        {
+            // Фолбэк на 1x1, если по какой-то причине текстуры нет (не должно случаться)
+            td.Width = td.Height = 1;
+            td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        }
+
+        // 4) Заполняем RenderData современными держателями.
+        m_renderData.device = device;   // ComPtr<ID3D11Device>
+        m_renderData.device1 = device1; // ComPtr<ID3D11Device1> (может быть null на старых рантаймах)
+        m_renderData.immCtx = imm3;     // ComPtr<ID3D11DeviceContext3>
         m_renderData.width = td.Width;
         m_renderData.height = td.Height;
+        m_renderData.texture = nativeMenuRenderData.SRV; // SRV для SpriteBatch
+        m_renderData.commonStates = std::make_shared<DirectX::CommonStates>(device.Get());
 
-        Microsoft::WRL::ComPtr<ID3D11DeviceContext> defCtx;
-        hr = device->CreateDeferredContext(0, defCtx.GetAddressOf());
+        // 5) Отдельный deferred-контекст ТОЛЬКО для SpriteBatch (меню).
+        Microsoft::WRL::ComPtr<ID3D11DeviceContext> drawCtx;
+        hr = device->CreateDeferredContext(0, drawCtx.GetAddressOf());
         if (FAILED(hr))
         {
-            throw std::runtime_error("MultiLayerMenu: failed CreateDeferredContext");
+            std::string msg = fmt::format("failed {}: CreateDeferredContext hr={:X}", NameOf(MultiLayerMenu), hr);
+            spdlog::error(msg);
+            throw std::runtime_error(msg);
         }
-        m_renderData.deferredContext = defCtx;
-        m_renderData.spriteBatchDeferred = std::make_unique<DirectX::SpriteBatch>(defCtx.Get());
+        m_renderData.drawCtx = drawCtx; // ComPtr<ID3D11DeviceContext>
 
-        // IMenu props
+        // 6) SpriteBatch, привязанный к drawCtx.
+        m_renderData.spriteBatchDeferred = std::make_unique<DirectX::SpriteBatch>(drawCtx.Get());
+
+        // 7) Очередь для CL от CEF-потока (Single-Producer/Single-Consumer).
+        m_renderData.pendingCopy = std::make_unique<NL::Render::CLRing>();
+
+        // ===== Ниже — ваш прежний код свойств меню/подписок =====
+
         depthPriority = 12;
         menuFlags.set(RE::UI_MENU_FLAGS::kAlwaysOpen);
         menuFlags.set(RE::UI_MENU_FLAGS::kAllowSaving);
@@ -114,70 +155,66 @@ namespace NL::Menus
 
     void MultiLayerMenu::PostDisplay()
     {
-        std::lock_guard<std::mutex> lock(m_mapMenuMutex);
+        std::lock_guard<std::mutex> g(m_mapMenuMutex);
         if (m_menuMap.empty())
             return;
 
-        auto* imm = m_renderData.deviceContext;
-        auto* def = m_renderData.deferredContext.Get();
+        auto* imm = m_renderData.immCtx.Get();
 
-        m_renderData.drawLock.Lock();
-
+        // 1) Сохраняем текущие RT/DS и вьюпорты (динамически).
         Microsoft::WRL::ComPtr<ID3D11RenderTargetView> rtv;
         Microsoft::WRL::ComPtr<ID3D11DepthStencilView> dsv;
         imm->OMGetRenderTargets(1, rtv.GetAddressOf(), dsv.GetAddressOf());
 
         UINT vpCount = 0;
         imm->RSGetViewports(&vpCount, nullptr);
-        D3D11_VIEWPORT vps[8]{};
-        if (vpCount > 0 && vpCount <= 8)
+        const UINT kMaxVP = D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE; // 16
+        vpCount = (vpCount > kMaxVP) ? kMaxVP : vpCount;
+
+        std::vector<D3D11_VIEWPORT> vps(vpCount ? vpCount : 1);
+        if (vpCount)
         {
-            imm->RSGetViewports(&vpCount, vps);
+            imm->RSGetViewports(&vpCount, vps.data());
         }
         else
         {
+            vps[0] = {0, 0, float(m_renderData.width), float(m_renderData.height), 0.f, 1.f};
             vpCount = 1;
-            vps[0].TopLeftX = 0.0f;
-            vps[0].TopLeftY = 0.0f;
-            vps[0].Width = static_cast<float>(m_renderData.width);
-            vps[0].Height = static_cast<float>(m_renderData.height);
-            vps[0].MinDepth = 0.0f;
-            vps[0].MaxDepth = 1.0f;
         }
 
         if (!rtv)
-        {
-            m_renderData.drawLock.Unlock();
             return;
+
+        // 2) Выполняем ВСЕ накопившиеся копии с восстановлением состояния
+        {
+            Microsoft::WRL::ComPtr<ID3D11CommandList> cl;
+            while (m_renderData.pendingCopy->pop(cl))
+            {
+                imm->ExecuteCommandList(cl.Get(), TRUE); // восстановить состояние вокруг копии
+            }
         }
+
+        // 3) Собираем отрисовку меню на drawCtx
+        auto* def = m_renderData.drawCtx.Get();
 
         ID3D11RenderTargetView* rtvPtr = rtv.Get();
         def->OMSetRenderTargets(1, &rtvPtr, dsv.Get());
-        def->RSSetViewports(vpCount, vps);
+        def->RSSetViewports(vpCount, vps.data());
 
         m_renderData.spriteBatchDeferred->Begin(
             DirectX::SpriteSortMode_Deferred,
-            m_renderData.commonStates->AlphaBlend());
+            m_renderData.commonStates->AlphaBlend()); // premultiplied по умолчанию :contentReference[oaicite:6]{index=6}
 
         for (const auto& kv : m_menuMap)
-        {
             kv.second->Draw();
-        }
 
         m_renderData.spriteBatchDeferred->End();
 
-        Microsoft::WRL::ComPtr<ID3D11CommandList> cl;
-        const HRESULT hr = def->FinishCommandList(FALSE, &cl);
-        if (SUCCEEDED(hr) && cl)
+        Microsoft::WRL::ComPtr<ID3D11CommandList> drawCL;
+        if (SUCCEEDED(def->FinishCommandList(FALSE, drawCL.GetAddressOf())) && drawCL)
         {
-            imm->ExecuteCommandList(cl.Get(), TRUE);
+            imm->ExecuteCommandList(drawCL.Get(), TRUE); // вернуть состояние двигателю игры :contentReference[oaicite:7]{index=7}
         }
-        else
-        {
-            spdlog::error("MultiLayerMenu::PostDisplay: FinishCommandList failed, hr={:X}", hr);
-        }
-
-        m_renderData.drawLock.Unlock();
     }
 
     RE::UI_MESSAGE_RESULTS MultiLayerMenu::ProcessMessage(RE::UIMessage& a_message)

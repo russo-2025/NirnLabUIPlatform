@@ -19,32 +19,22 @@ namespace NL::Render
         IRenderLayer::Init(a_renderData);
         m_renderData = a_renderData;
 
-        if (!m_renderData || !m_renderData->device1)
-            return;
-
-        // Отдельный deferred-контекст только для копий
-        Microsoft::WRL::ComPtr<ID3D11DeviceContext> copyCtx;
-
-        auto hr = m_renderData->device->CreateDeferredContext(0, copyCtx.GetAddressOf());
-
+        HRESULT hr = m_renderData->device->QueryInterface(IID_PPV_ARGS(&m_device1));
         if (FAILED(hr))
         {
-            spdlog::error("{}: CreateDeferredContext failed hr={:08X}", NameOf(CEFCopyRenderLayer), hr);
-            return;
+            spdlog::error("{}: QI(ID3D11Device1) hr={:X}", NameOf(CEFCopyRenderLayer), hr);
         }
-
-        m_copyCtx = copyCtx; // ComPtr<ID3D11DeviceContext>
         m_targetsReady = false;
         m_cached = {};
     }
-    
+
     const inline ::DirectX::SimpleMath::Vector2 _Cef_Menu_Draw_Vector = {0.f, 0.f};
     void CEFCopyRenderLayer::Draw()
     {
         if (!m_isVisible || !m_targetsReady || !m_renderData)
             return;
 
-        const uint32_t readIdx = (m_idx.load(std::memory_order_acquire) & 1u);
+        const uint32_t readIdx = m_idx.load(std::memory_order_acquire);
 
         m_renderData->spriteBatchDeferred->Draw(
             m_cefSRV[readIdx].Get(),
@@ -70,12 +60,12 @@ namespace NL::Render
     }
 
     void CEFCopyRenderLayer::OnAcceleratedPaint(
-        CefRefPtr<CefBrowser> /*browser*/,
+        CefRefPtr<CefBrowser> browser,
         PaintElementType type,
-        const RectList& /*dirtyRects*/,
+        const RectList& dirtyRects,
         const CefAcceleratedPaintInfo& info)
     {
-        if (type == PET_POPUP || !m_renderData || !m_copyCtx)
+        if (type == PET_POPUP || !m_renderData || !m_device1)
             return;
 
         ID3D11Texture2D* srcTex = GetOrOpenSource(info.shared_texture_handle);
@@ -89,49 +79,25 @@ namespace NL::Render
         if (!m_targetsReady)
             return;
 
-        const uint32_t curIdx = m_idx.load(std::memory_order_relaxed) & 1u;
-        const uint32_t writeIdx = 1u - curIdx;
+        const uint32_t writeIdx = 1u - m_idx.load(std::memory_order_relaxed);
 
-        // Попытка захвата KeyedMutex (не блокируем надолго)
+        m_renderData->drawLock.Lock();
+
         Microsoft::WRL::ComPtr<IDXGIKeyedMutex> km;
-        srcTex->QueryInterface(IID_PPV_ARGS(&km));
-
-        bool canCopy = true;
-        if (km)
+        if (SUCCEEDED(srcTex->QueryInterface(IID_PPV_ARGS(&km))) && km)
         {
-            HRESULT hr = km->AcquireSync(0 /*key*/, 0 /*ms*/); // 0 = не ждём
-            if (hr == WAIT_TIMEOUT)
-            {
-                canCopy = false; // пропускаем этот апдейт, не блокируя рендер
-            }
-            else if (FAILED(hr))
-            {
-                spdlog::warn("{}: AcquireSync failed hr={:08X}", NameOf(CEFCopyRenderLayer), hr);
-                canCopy = false;
-            }
+            km->AcquireSync(0, 5);
+            m_renderData->deferredContext->CopyResource(m_cefTex[writeIdx].Get(), srcTex);
+            km->ReleaseSync(0);
+        }
+        else
+        {
+            m_renderData->deferredContext->CopyResource(m_cefTex[writeIdx].Get(), srcTex);
         }
 
-        Microsoft::WRL::ComPtr<ID3D11CommandList> copyCL;
-        if (canCopy)
-        {
-            m_copyCtx->CopyResource(m_cefTex[writeIdx].Get(), srcTex);
-            if (km)
-                km->ReleaseSync(0);
-            if (SUCCEEDED(m_copyCtx->FinishCommandList(FALSE, copyCL.GetAddressOf())) && copyCL)
-            {
-                // Публикуем новый индекс ТОЛЬКО после помещения CL в очередь
-                if (!m_renderData->pendingCopy->push(std::move(copyCL)))
-                {
-                    // очередь переполнена → тихо дроп или лог
-                }
-                else
-                {
-                    m_idx.store(writeIdx, std::memory_order_release);
-                }
-            }
-            // Чистим состояние локального deferred-контекста под следующую запись
-            // (можно не делать: FinishCommandList сбрасывает внутренние буферы)
-        }
+        m_idx.store(writeIdx, std::memory_order_release);
+
+        m_renderData->drawLock.Unlock();
     }
 
     ID3D11Texture2D* CEFCopyRenderLayer::GetOrOpenSource(HANDLE h)
@@ -140,30 +106,26 @@ namespace NL::Render
             if (e.h == h)
                 return e.tex.Get();
 
-        // Найти свободную ячейку
         for (auto& e : m_srcCache)
             if (!e.h)
             {
                 Microsoft::WRL::ComPtr<ID3D11Texture2D> t;
-                if (SUCCEEDED(m_renderData->device1->OpenSharedResource1(h, IID_PPV_ARGS(&t))) && t)
+                if (SUCCEEDED(m_device1->OpenSharedResource1(h, IID_PPV_ARGS(&t))) && t)
                 {
                     e.h = h;
                     e.tex = t;
                     return e.tex.Get();
                 }
-                return nullptr;
             }
 
-        // LRU/перезапись 0-го слота с корректным release
         Microsoft::WRL::ComPtr<ID3D11Texture2D> t;
-        if (SUCCEEDED(m_renderData->device1->OpenSharedResource1(h, IID_PPV_ARGS(&t))) && t)
+        if (SUCCEEDED(m_device1->OpenSharedResource1(h, IID_PPV_ARGS(&t))) && t)
         {
-            m_srcCache[0].tex.Reset();
-            m_srcCache[0].h = 0;
             m_srcCache[0].h = h;
             m_srcCache[0].tex = t;
             return m_srcCache[0].tex.Get();
         }
+
         return nullptr;
     }
 

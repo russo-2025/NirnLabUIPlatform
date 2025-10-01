@@ -40,7 +40,9 @@ namespace NL::Render
         // ссылки
         RenderData* m_renderData = nullptr;
         Microsoft::WRL::ComPtr<ID3D11Device1> m_device1;
-        Microsoft::WRL::ComPtr<ID3D11DeviceContext> m_copyCtx;
+
+        // прочее
+        bool m_isVisible = true; // как у тебя
 
     private:
         ID3D11Texture2D* GetOrOpenSource(HANDLE h);

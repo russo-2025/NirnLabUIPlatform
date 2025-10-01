@@ -11,44 +11,33 @@ namespace NL::Render
     {
         IMPLEMENT_REFCOUNTING(CEFCopyRenderLayer);
 
-    public:
+      public:
         static std::shared_ptr<CEFCopyRenderLayer> make_shared();
         static void release_shared(CEFCopyRenderLayer* a_render);
 
-    private:
-        // shared-источники CEF (крошечный кэш handle→texture)
-        struct SrcCacheEntry
-        {
-            HANDLE h = nullptr;
-            Microsoft::WRL::ComPtr<ID3D11Texture2D> tex;
-        };
-        std::array<SrcCacheEntry, 3> m_srcCache{};
+      protected:
+        HANDLE m_sharedTextureHandle = nullptr;
 
-        // локальные цели (двойной буфер)
+        // ������� �����������: write/read
         Microsoft::WRL::ComPtr<ID3D11Texture2D> m_cefTex[2];
         Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_cefSRV[2];
-        std::atomic<uint32_t> m_idx{0}; // текущий read
+        std::atomic<uint32_t> m_idx{0}; // ������� read-������ [0|1]
 
-        // формат/размер
-        struct
-        {
-            UINT w = 0, h = 0;
-            DXGI_FORMAT fmt = DXGI_FORMAT_UNKNOWN;
-        } m_cached{};
+        // ����������/���������
+        Microsoft::WRL::ComPtr<ID3D11Device1> m_device1 = nullptr;
+        Microsoft::WRL::ComPtr<ID3D11DeviceContext> m_deferredContext = nullptr; // ��� deferred
+
+        // SpriteBatch, ����������� � DEFERRED-���������
+        std::unique_ptr<DirectX::SpriteBatch> m_spriteBatchDeferred;
+
+        // �������� ������/������ ��� ����������������� ����� ��� ��������� ������� ��������
+        D3D11_TEXTURE2D_DESC m_cachedDesc{};
         bool m_targetsReady = false;
 
-        // ссылки
-        RenderData* m_renderData = nullptr;
-        Microsoft::WRL::ComPtr<ID3D11Device1> m_device1;
-
-        // прочее
-        bool m_isVisible = true; // как у тебя
-
     private:
-        ID3D11Texture2D* GetOrOpenSource(HANDLE h);
         void EnsureTargetsLike(ID3D11Texture2D* src);
 
-    public:
+      public:
         ~CEFCopyRenderLayer() override = default;
 
         // IRenderLayer

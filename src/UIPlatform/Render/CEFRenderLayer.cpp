@@ -46,14 +46,13 @@ namespace NL::Render
     void CEFRenderLayer::Draw()
     {
         if (m_isVisible && m_cefSRV != nullptr)
-        {/*
+        {
             m_renderData->spriteBatch->Draw(
                 m_cefSRV,
                 _Cef_Menu_Draw_Vector,
                 nullptr,
                 ::DirectX::Colors::White,
                 0.f);
-                */
         }
     }
 

@@ -277,6 +277,12 @@ target_link_libraries(
         nlohmann_json::nlohmann_json
 )
 
+# Detours
+find_path(DETOURS_INCLUDE_DIRS "detours/detours.h")
+find_library(DETOURS_LIBRARY detours REQUIRED)
+target_include_directories(${UIPlatformProjectName} PRIVATE ${DETOURS_INCLUDE_DIRS})
+target_link_libraries(${UIPlatformProjectName} PRIVATE ${DETOURS_LIBRARY})
+
 target_compile_definitions(
     ${UIPlatformProjectName}
     PRIVATE

@@ -1,6 +1,7 @@
 #include "PCH.h"
 #include "Hooks/ShutdownHook.hpp"
 #include "Controllers/PublicAPIController.h"
+#include "Utils/D3D11Utils.h"
 
 inline void ShowMessageBox(const char* a_msg)
 {
@@ -96,6 +97,7 @@ extern "C" DLLEXPORT bool SKSEAPI Entry(const SKSE::LoadInterface* a_skse)
         spdlog::info("winproc install");
         // Hooks
         NL::Hooks::WinProcHook::Install();
+        NL::D3D11Hooks::Init();
 
         spdlog::info("shutdown install");
         NL::Hooks::ShutdownHook::Install();

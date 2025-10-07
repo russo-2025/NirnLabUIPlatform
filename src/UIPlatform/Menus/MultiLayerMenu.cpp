@@ -119,22 +119,22 @@ namespace NL::Menus
         ID3D11Buffer* vsConstantBuffer = nullptr;
         m_renderData.deviceContext->VSGetConstantBuffers(0, 1, &vsConstantBuffer);
 
-        m_renderData.spriteBatch->Begin(::DirectX::SpriteSortMode_Deferred, m_renderData.commonStates->NonPremultiplied());
-        m_renderData.drawLock.Lock();
+        //m_renderData.spriteBatch->Begin(::DirectX::SpriteSortMode_Deferred, m_renderData.commonStates->NonPremultiplied());
+        //m_renderData.drawLock.Lock();
         try
         {
             for (const auto& subMenu : m_menuMap)
             {
                 subMenu.second->Draw();
             }
-            m_renderData.deviceContext->Flush1(D3D11_CONTEXT_TYPE::D3D11_CONTEXT_TYPE_COPY, nullptr);
+            //m_renderData.deviceContext->Flush1(D3D11_CONTEXT_TYPE::D3D11_CONTEXT_TYPE_COPY, nullptr);
         }
         catch (const std::exception& err)
         {
             m_logger->error("{}: {}", NameOf(MultiLayerMenu), err.what());
         }
-        m_renderData.spriteBatch->End();
-        m_renderData.drawLock.Unlock();
+        //m_renderData.spriteBatch->End();
+        //m_renderData.drawLock.Unlock();
 
         // fix enb
         m_renderData.deviceContext->VSSetConstantBuffers(0, 1, &vsConstantBuffer);

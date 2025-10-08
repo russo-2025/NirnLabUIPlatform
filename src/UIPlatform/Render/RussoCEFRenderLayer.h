@@ -47,7 +47,6 @@ namespace NL::Render
         bool CopyAndPublish(uint32_t idx, ID3D11Texture2D* src);
         bool UpdateFrame(ID3D11Texture2D* src);
         ID3D11ShaderResourceView* AcquireFrame();
-        void ReleaseFrame();
         void CreateSlot(uint32_t i);
 
     public:

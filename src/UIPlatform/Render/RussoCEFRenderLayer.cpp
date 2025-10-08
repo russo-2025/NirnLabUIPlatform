@@ -1,6 +1,13 @@
 #include "RussoCEFRenderLayer.h"
 #include "Utils/D3D11Utils.h"
 
+#define FATAL_ERROR(...)                           \
+    {                                              \
+        const auto msg = fmt::format(__VA_ARGS__); \
+        spdlog::error(msg);                        \
+        SKSE::stl::report_and_fail(msg.c_str());   \
+    }
+
 namespace NL::Render
 {
     std::shared_ptr<RussoCEFRenderLayer> RussoCEFRenderLayer::make_shared()
@@ -18,19 +25,16 @@ namespace NL::Render
     void RussoCEFRenderLayer::Init(RenderData* a_renderData)
     {
         IRenderLayer::Init(a_renderData);
-        
-        spdlog::info("game d3d11 device 0x{:X} 0x{:X}", (size_t)a_renderData->device, (size_t)RE::BSGraphics::Renderer::GetSingleton()->GetRendererData()->forwarder);
+
         if (!D3D11Utils::IsDxgi11Device(m_renderData->device))
         {
-            spdlog::error("{}: device is not a DXGI 1.1 device", NameOf(RussoCEFRenderLayer));
-            throw std::runtime_error("RussoCEFRenderLayer::Init failed");
+            FATAL_ERROR("{}::Init: skyrim d3d11 device is not a DXGI 1.1 device", NameOf(RussoCEFRenderLayer));
         }
 
         HRESULT hr = m_renderData->device->QueryInterface(IID_PPV_ARGS(&m_deviceRender));
         if (FAILED(hr))
         {
-            spdlog::error("{}: failed QueryInterface(), code {:X}", NameOf(RussoCEFRenderLayer), hr);
-            throw std::runtime_error("RussoCEFRenderLayer::Init failed");
+            FATAL_ERROR("{}::Init: failed QueryInterface() to skyrim ID3D11Device1, code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
         Microsoft::WRL::ComPtr<ID3D11Device> deviceCopy;
@@ -39,43 +43,37 @@ namespace NL::Render
 
         if (FAILED(hr) || !deviceCopy)
         {
-            spdlog::error("{}: failed CreateCopyDeviceOnDxgi11Factory(), code {:X}", NameOf(RussoCEFRenderLayer), hr);
-            throw std::runtime_error("RussoCEFRenderLayer::Init failed");
+            FATAL_ERROR("{}::Init: failed CreateCopyDeviceOnDxgi11Factory(), code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
         Microsoft::WRL::ComPtr<ID3D11Device1> deviceCopy1;
         hr = deviceCopy->QueryInterface(IID_PPV_ARGS(&deviceCopy1));
         if (FAILED(hr))
         {
-            spdlog::error("{}: failed QueryInterface() to ID3D11Device1, code {:X}", NameOf(RussoCEFRenderLayer), hr);
-            throw std::runtime_error("RussoCEFRenderLayer::Init failed");
+            FATAL_ERROR("{}::Init: failed QueryInterface() to deviceCopy1 ID3D11Device1, code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
-        D3D11Utils::EnableD3D11InfoQueue(deviceCopy.Get());
+        // debug
+        //D3D11Utils::EnableD3D11InfoQueue(deviceCopy.Get());
 
         m_deviceCopy = deviceCopy;
         m_deviceCopy1 = deviceCopy1;
 
         if (!m_deviceCopy || !m_deviceCopy1 || !m_immContextCopy)
         {
-            spdlog::error("{}: failed to create D3D11 device or context", NameOf(RussoCEFRenderLayer));
-            throw std::runtime_error("RussoCEFRenderLayer::Init failed");
+            FATAL_ERROR("{}::Init: failed to create D3D11 device or context", NameOf(RussoCEFRenderLayer));
         }
-
-        // Создание copy done query
         D3D11_QUERY_DESC queryDesc{};
         queryDesc.Query = D3D11_QUERY_EVENT;
         hr = m_deviceCopy->CreateQuery(&queryDesc, m_copyDoneQuery.GetAddressOf());
         if (FAILED(hr))
         {
-            spdlog::error("{}: failed CreateQuery(), code {:X}", NameOf(RussoCEFRenderLayer), hr);
-            throw std::runtime_error("RussoCEFRenderLayer::Init failed");
+            FATAL_ERROR("{}::Init: failed CreateQuery(), code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
         if (m_renderData->width == 0 || m_renderData->height == 0)
         {
-            spdlog::error("{}: invalid texture dimensions (width: {}, height: {})", NameOf(RussoCEFRenderLayer), m_renderData->width, m_renderData->height);
-            throw std::runtime_error("Invalid texture dimensions");
+            FATAL_ERROR("{}::Init: invalid texture dimensions (width: {}, height: {})", NameOf(RussoCEFRenderLayer), m_renderData->width, m_renderData->height);
         }
 
         UINT formatSupport = 0;
@@ -83,8 +81,7 @@ namespace NL::Render
         if (FAILED(hr) || !(formatSupport & D3D11_FORMAT_SUPPORT_TEXTURE2D) ||
             !(formatSupport & D3D11_FORMAT_SUPPORT_SHADER_SAMPLE))
         {
-            spdlog::error("{}: Format not fully supported", NameOf(RussoCEFRenderLayer));
-            throw std::runtime_error("Unsupported texture format");
+            FATAL_ERROR("{}::Init: Format not fully supported", NameOf(RussoCEFRenderLayer));
         }
 
         for (uint32_t i = 0; i < SLOT_COUNT; i++)
@@ -183,14 +180,18 @@ namespace NL::Render
         {
             const uint32_t idx = (start + a) % SLOT_COUNT;
             if (idx == latched)
+            {
                 continue;
+            }
 
             auto& s = m_slots[idx];
             if (s.mutexP->AcquireSync(1, 0) == S_OK)
             {
                 s.mutexP->ReleaseSync(0);
                 if (s.mutexP->AcquireSync(0, 0) == S_OK)
+                {
                     return idx;
+                }
             }
         }
 
@@ -223,6 +224,7 @@ namespace NL::Render
         m_latestUpdated.store(idx, std::memory_order_release);
         uint32_t next_id = (idx + 1) % SLOT_COUNT;
         m_nextWrite.store(next_id, std::memory_order_relaxed);
+
         return true;
     }
 
@@ -235,9 +237,11 @@ namespace NL::Render
 
         auto slot = ReserveSlotForWrite();
         if (!slot.has_value())
+        {
             return false;
+        }
 
-        return CopyAndPublish(*slot, src);
+        return CopyAndPublish(slot.value(), src);
     }
 
     ID3D11ShaderResourceView* RussoCEFRenderLayer::AcquireFrame()
@@ -246,10 +250,14 @@ namespace NL::Render
         uint32_t latched = m_latchedSlot.load(std::memory_order_relaxed);
 
         if (latest == kInvalid)
+        {
             return (latched == kInvalid) ? nullptr : m_slots[latched].srvC.Get();
+        }
 
         if (latched == latest)
+        {
             return m_slots[latched].srvC.Get();
+        }
 
         if (m_slots[latest].mutexC->AcquireSync(1, 0) == S_OK)
         {
@@ -260,15 +268,6 @@ namespace NL::Render
         }
 
         return (latched == kInvalid) ? nullptr : m_slots[latched].srvC.Get();
-    }
-
-    void RussoCEFRenderLayer::ReleaseFrame()
-    {
-        if (m_latchedSlot != kInvalid)
-        {
-            m_slots[m_latchedSlot].mutexC->ReleaseSync(0);
-            m_latchedSlot = kInvalid;
-        }
     }
 
     void RussoCEFRenderLayer::CreateSlot(uint32_t i)
@@ -283,7 +282,7 @@ namespace NL::Render
         td.SampleDesc.Count = 1;
         td.SampleDesc.Quality = 0;
         td.Usage = D3D11_USAGE_DEFAULT;
-        td.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+        td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
         td.CPUAccessFlags = 0;
         td.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX | D3D11_RESOURCE_MISC_SHARED_NTHANDLE;
 
@@ -291,16 +290,14 @@ namespace NL::Render
         auto hr = m_deviceCopy->CreateTexture2D(&td, nullptr, m_slots[i].texP.ReleaseAndGetAddressOf());
         if (FAILED(hr))
         {
-            spdlog::error("{}: failed CreateTexture2D() for producer, code {:X}", NameOf(RussoCEFRenderLayer), hr);
-            throw std::runtime_error("RussoCEFRenderLayer::CreateSlot failed");
+            FATAL_ERROR("{}::CreateSlot: failed CreateTexture2D() for producer, code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
         // producer - get mutex
         hr = m_slots[i].texP.As(&m_slots[i].mutexP);
         if (FAILED(hr))
         {
-            spdlog::error("{}: failed QueryInterface() for producer mutex, code {:X}", NameOf(RussoCEFRenderLayer), hr);
-            throw std::runtime_error("RussoCEFRenderLayer::CreateSlot failed");
+            FATAL_ERROR("{}::CreateSlot: failed QueryInterface() for producer mutex, code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
         // producer - create shared handle
@@ -308,31 +305,27 @@ namespace NL::Render
         hr = m_slots[i].texP.As(&dxgiRes);
         if (FAILED(hr))
         {
-            spdlog::error("{}: failed QueryInterface() for IDXGIResource, code {:X}", NameOf(RussoCEFRenderLayer), hr);
-            throw std::runtime_error("RussoCEFRenderLayer::CreateSlot failed");
+            FATAL_ERROR("{}::CreateSlot: failed QueryInterface() for IDXGIResource, code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
         hr = dxgiRes->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE, nullptr, &m_slots[i].sharedHandle);
         if (FAILED(hr) || !m_slots[i].sharedHandle)
         {
-            spdlog::error("{}: failed GetSharedHandle(), code {:X}", NameOf(RussoCEFRenderLayer), hr);
-            throw std::runtime_error("RussoCEFRenderLayer::CreateSlot failed");
+            FATAL_ERROR("{}::CreateSlot: failed GetSharedHandle(), code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
         // consumer - open shared texture by handle
         hr = m_deviceRender->OpenSharedResource1(m_slots[i].sharedHandle, __uuidof(ID3D11Texture2D), (void**)m_slots[i].texC.ReleaseAndGetAddressOf());
         if (FAILED(hr))
         {
-            spdlog::error("{}: failed OpenSharedResource() for consumer, code {:X}", NameOf(RussoCEFRenderLayer), hr);
-            throw std::runtime_error("RussoCEFRenderLayer::CreateSlot failed");
+            FATAL_ERROR("{}::CreateSlot: failed OpenSharedResource() for consumer, code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
         // consumer - get mutex
         hr = m_slots[i].texC.As(&m_slots[i].mutexC);
         if (FAILED(hr))
         {
-            spdlog::error("{}: failed QueryInterface() for consumer mutex, code {:X}", NameOf(RussoCEFRenderLayer), hr);
-            throw std::runtime_error("RussoCEFRenderLayer::CreateSlot failed");
+            FATAL_ERROR("{}::CreateSlot: failed QueryInterface() for consumer mutex, code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
         // consumer - create SRV
@@ -345,8 +338,7 @@ namespace NL::Render
         hr = m_deviceRender->CreateShaderResourceView(m_slots[i].texC.Get(), &sd, m_slots[i].srvC.ReleaseAndGetAddressOf());
         if (FAILED(hr))
         {
-            spdlog::error("{}: failed CreateShaderResourceView(), code {:X}", NameOf(RussoCEFRenderLayer), hr);
-            throw std::runtime_error("RussoCEFRenderLayer::CreateSlot failed");
+            FATAL_ERROR("{}::CreateSlot: failed CreateShaderResourceView(), code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
         hr = m_slots[i].mutexC->AcquireSync(1, 0);

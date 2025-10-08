@@ -85,7 +85,7 @@ namespace NL::D3D11Utils
         }
 
         UINT flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT; // для BGRA/интеропа
-        flags |= D3D11_CREATE_DEVICE_DEBUG;
+        //flags |= D3D11_CREATE_DEVICE_DEBUG;
 
         static const D3D_FEATURE_LEVEL fls[] = {
             D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0};

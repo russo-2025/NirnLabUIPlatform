@@ -124,9 +124,6 @@ namespace NL::Render
         for (uint32_t i = 0; i < SLOT_COUNT; i++)
         {
             CreateSlot(i);
-
-            m_slots[i].mutexP->AcquireSync(0, 0);
-            m_slots[i].mutexP->ReleaseSync(0);
         }
 
         m_latestUpdated.store(kInvalid, std::memory_order_relaxed);
@@ -158,6 +155,8 @@ namespace NL::Render
             0.f);
 
         m_renderData->spriteBatch->End();
+
+        //ReleaseFrame();
     }
 
     void RussoCEFRenderLayer::GetViewRect(CefRefPtr<CefBrowser> browser, CefRect& rect)
@@ -197,6 +196,78 @@ namespace NL::Render
         }
 
         UpdateFrame(tex);
+
+        tex->Release();
+    }
+
+    // Попытка мгновенно зарезервировать слот под запись: вернуть индекс с захваченным key==0
+    std::optional<uint32_t> RussoCEFRenderLayer::ReserveSlotForWrite()
+    {
+        const uint32_t start = m_nextWrite.load(std::memory_order_relaxed);
+
+        // 1) Нормальный путь: ищем слот уже в key==0
+        for (uint32_t a = 0; a < SLOT_COUNT; ++a)
+        {
+            const uint32_t idx = (start + a) % SLOT_COUNT;
+            auto& s = m_slots[idx];
+            if (s.mutexP->AcquireSync(0, 0) == S_OK)
+            {
+                return idx;
+            }
+        }
+
+        // 2) Recall: все висят на key==1 → аккуратно отберем любой не-latched
+        const uint32_t latched = m_latchedSlot.load(std::memory_order_acquire);
+        for (uint32_t a = 0; a < SLOT_COUNT; ++a)
+        {
+            const uint32_t idx = (start + a) % SLOT_COUNT;
+            if (idx == latched)
+                continue;
+
+            auto& s = m_slots[idx];
+            if (s.mutexP->AcquireSync(1, 0) == S_OK)
+            {                                            // слот еще не забрал потребитель
+                s.mutexP->ReleaseSync(0);                // перевели в режим записи
+                if (s.mutexP->AcquireSync(0, 0) == S_OK) // сразу же захватили на запись
+                    return idx;
+                // если не получилось — идем дальше (крайне редкий случай гонки)
+            }
+        }
+
+        return std::nullopt; // всё занято — дропаем кадр без блокировок
+    }
+
+    // Единая точка копирования + публикации (единственный CopyResource в коде)
+    bool RussoCEFRenderLayer::CopyAndPublish(uint32_t idx, ID3D11Texture2D* src)
+    {
+        auto& s = m_slots[idx];
+
+        D3D11_TEXTURE2D_DESC da{}, db{};
+        s.texP->GetDesc(&da);
+        src->GetDesc(&db);
+        if (da.Width != db.Width || da.Height != db.Height || da.Format != db.Format)
+        {
+            s.mutexP->ReleaseSync(0); // вернуть в исходное состояние
+            return false;
+        }
+
+        // ЕДИНСТВЕННЫЙ вызов CopyResource
+        m_immContextCopy->CopyResource(s.texP.Get(), src);
+
+        // Фэнс: дождаться завершения GPU-команд до публикации
+        m_immContextCopy->End(m_copyDoneQuery.Get());
+        while (S_OK != m_immContextCopy->GetData(m_copyDoneQuery.Get(), nullptr, 0, 0))
+        {
+            std::this_thread::yield();
+        }
+
+        // Публикация для потребителя
+        s.mutexP->ReleaseSync(1);
+
+        m_latestUpdated.store(idx, std::memory_order_release);
+        uint64_t next_id = (idx + 1) % SLOT_COUNT;
+        m_nextWrite.store(next_id, std::memory_order_relaxed);
+        return true;
     }
 
     bool RussoCEFRenderLayer::UpdateFrame(ID3D11Texture2D* src)
@@ -206,6 +277,12 @@ namespace NL::Render
             return false;
         }
 
+        auto slot = ReserveSlotForWrite();
+        if (!slot.has_value())
+            return false;
+
+        return CopyAndPublish(*slot, src);
+        /*
         uint32_t start = (m_latestUpdated.load(std::memory_order_relaxed) + 1u) % SLOT_COUNT;
 
         spdlog::info("{}: UpdateFrame started, start slot {}", NameOf(RussoCEFRenderLayer), start);
@@ -220,6 +297,7 @@ namespace NL::Render
                 break;
             }
         }
+        
         spdlog::info("{}: UpdateFrame finished search, chosen slot {}", NameOf(RussoCEFRenderLayer), mb_chosen.has_value() ? std::to_string(mb_chosen.value()) : "none");
 
         if (!mb_chosen.has_value())
@@ -239,7 +317,7 @@ namespace NL::Render
             spdlog::error("{}: texture size mismatch ({}x{} vs {}x{})", NameOf(RussoCEFRenderLayer), a.Width, a.Height, b.Width, b.Height);
             spdlog::error("{}: texture format mismatch ({} vs {})", NameOf(RussoCEFRenderLayer), (int)a.Format, (int)b.Format);
             spdlog::error("{}: texture description mismatch", NameOf(RussoCEFRenderLayer));
-            slot.mutexP->ReleaseSync(0);
+            slot.mutexP->ReleaseSync(1);
             return false;
         }
 
@@ -260,10 +338,31 @@ namespace NL::Render
         m_latestUpdated.store((UINT)chosen, std::memory_order_release);
 
         return true;
+        */
     }
 
     ID3D11ShaderResourceView* RussoCEFRenderLayer::AcquireFrame()
     {
+        const uint32_t latest = m_latestUpdated.load(std::memory_order_acquire);
+        uint32_t latched = m_latchedSlot.load(std::memory_order_relaxed);
+
+        if (latest == kInvalid)
+            return (latched == kInvalid) ? nullptr : m_slots[latched].srvC.Get();
+
+        if (latched == latest)
+            return m_slots[latched].srvC.Get();
+
+        if (m_slots[latest].mutexC->AcquireSync(1, 0) == S_OK)
+        {
+            if (latched != kInvalid)
+                m_slots[latched].mutexC->ReleaseSync(0);
+            m_latchedSlot.store(latest, std::memory_order_release);
+            return m_slots[latest].srvC.Get();
+        }
+
+        return (latched == kInvalid) ? nullptr : m_slots[latched].srvC.Get();
+
+        /*
         UINT latest = m_latestUpdated.load(std::memory_order_acquire);
 
         if (latest == kInvalid)
@@ -271,21 +370,20 @@ namespace NL::Render
             return nullptr;
         }
 
-        spdlog::info("{}: AcquireFrame latest {}", NameOf(RussoCEFRenderLayer), latest);
-
         if (latest != m_latchedSlot)
         {
-            auto& newSlot = m_slots[latest];
-            if (newSlot.mutexC->AcquireSync(1, 0) == S_OK)
+            HRESULT hr = m_slots[latest].mutexC->AcquireSync(1, 0);
+            if (hr == S_OK)
             {
-                // Получили новый кадр — отпустим старый (если был)
                 if (m_latchedSlot != kInvalid)
                 {
+                    // spdlog::info("{}: AcquireFrame releasing old slot {}", NameOf(RussoCEFRenderLayer), m_latchedSlot);
                     m_slots[m_latchedSlot].mutexC->ReleaseSync(0);
                 }
 
                 m_latchedSlot = latest;
             }
+
         }
 
         if (m_latchedSlot == kInvalid)
@@ -294,12 +392,14 @@ namespace NL::Render
         }
 
         return m_slots[m_latchedSlot].srvC.Get();
+        */
     }
 
     void RussoCEFRenderLayer::ReleaseFrame()
     {
         if (m_latchedSlot != kInvalid)
         {
+            spdlog::info("{}: AcquireFrame releasing old slot {}", NameOf(RussoCEFRenderLayer), m_latchedSlot.load());
             m_slots[m_latchedSlot].mutexC->ReleaseSync(0);
             m_latchedSlot = kInvalid;
         }
@@ -381,6 +481,12 @@ namespace NL::Render
         {
             spdlog::error("{}: failed CreateShaderResourceView(), code {:X}", NameOf(RussoCEFRenderLayer), hr);
             throw std::runtime_error("RussoCEFRenderLayer::CreateSlot failed");
+        }
+
+        hr = m_slots[i].mutexC->AcquireSync(1, 0);
+        if (hr == S_OK)
+        {
+            m_slots[i].mutexC->ReleaseSync(0);
         }
     }
 }

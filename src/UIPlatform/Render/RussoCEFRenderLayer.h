@@ -37,10 +37,14 @@ namespace NL::Render
         std::array<Slot, SLOT_COUNT> m_slots;
 
         static constexpr uint32_t kInvalid = UINT32_MAX;
-        std::atomic<uint32_t> m_latestUpdated{kInvalid};
         Microsoft::WRL::ComPtr<ID3D11Query> m_copyDoneQuery;
-        uint32_t m_latchedSlot = kInvalid;
 
+        std::atomic<uint32_t> m_latestUpdated{kInvalid};
+        std::atomic<uint32_t> m_latchedSlot{kInvalid};
+        std::atomic<uint32_t> m_nextWrite{kInvalid};
+
+        std::optional<uint32_t> ReserveSlotForWrite();
+        bool CopyAndPublish(uint32_t idx, ID3D11Texture2D* src);
         bool UpdateFrame(ID3D11Texture2D* src);
         ID3D11ShaderResourceView* AcquireFrame();
         void ReleaseFrame();

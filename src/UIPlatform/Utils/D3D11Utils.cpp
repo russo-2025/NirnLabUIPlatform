@@ -182,17 +182,6 @@ namespace NL::D3D11Utils
 
 namespace NL::D3D11Hooks
 {
-    /*typedef HRESULT(WINAPI* D3D11CreateDevice_t)(
-        IDXGIAdapter*,
-        D3D_DRIVER_TYPE,
-        HMODULE,
-        UINT,
-        const D3D_FEATURE_LEVEL*,
-        UINT,
-        UINT,
-        ID3D11Device**,
-        D3D_FEATURE_LEVEL*,
-        ID3D11DeviceContext**);*/
     typedef HRESULT(WINAPI* D3D11CreateDeviceAndSwapChain_t)(
         IDXGIAdapter*,
         D3D_DRIVER_TYPE,
@@ -208,55 +197,15 @@ namespace NL::D3D11Hooks
         ID3D11DeviceContext**);
 
     // The original function pointer
-    //D3D11CreateDevice_t Original_D3D11CreateDevice = nullptr;
     D3D11CreateDeviceAndSwapChain_t Original_D3D11CreateDeviceAndSwapChain = nullptr;
-    /*
-    HRESULT WINAPI Hooked_D3D11CreateDevice(
-        IDXGIAdapter* pAdapter,
-        D3D_DRIVER_TYPE DriverType,
-        HMODULE Software,
-        UINT Flags,
-        const D3D_FEATURE_LEVEL* pFeatureLevels,
-        UINT FeatureLevels,
-        UINT SDKVersion,
-        ID3D11Device** ppDevice,
-        D3D_FEATURE_LEVEL* pFeatureLevel,
-        ID3D11DeviceContext** ppImmediateContext)
+
+    static ID3D11Device* skyrimD3D11Device = nullptr;
+
+    ID3D11Device* GetHookedSkyrimD3D11Device()
     {
-        // Log or modify parameters before calling the original function
-        spdlog::info("D3D11CreateDevice called with IDXGIAdapter: 0x{:X}, SDKVersion: 0x{:X} DriverType: {}", (size_t)pAdapter, SDKVersion, (uint64_t)DriverType);
-
-        // Call the original function
-        HRESULT hr = Original_D3D11CreateDevice(
-            pAdapter,
-            DriverType,
-            Software,
-            Flags,
-            pFeatureLevels,
-            FeatureLevels,
-            SDKVersion,
-            ppDevice,
-            pFeatureLevel,
-            ppImmediateContext);
-
-        // Post-processing after the original call
-        if (SUCCEEDED(hr))
-        {
-            spdlog::info("D3D11Device created successfully!");
-            // You can now modify or inspect the created device/context if needed
-        }
-        else
-        {
-            spdlog::error("D3D11Device creation failed with HRESULT: 0x{:X}", hr);
-        }
-
-        spdlog::info("Device Ptr: 0x{:X}", (size_t)(*ppDevice));
-        spdlog::info("Device Feature Level: 0x{:X}", (size_t)(*ppDevice)->GetFeatureLevel());
-        spdlog::info("Flags: 0x{:X}", (size_t)(*ppDevice)->GetCreationFlags());
-
-        return hr;
+        return skyrimD3D11Device;
     }
-    */
+
     HRESULT WINAPI Hooked_D3D11CreateDeviceAndSwapChain(
         IDXGIAdapter* pAdapter,
         D3D_DRIVER_TYPE DriverType,
@@ -274,12 +223,7 @@ namespace NL::D3D11Hooks
         static bool firstTime = true;
 
         // Log or modify parameters before the original call
-        spdlog::info("D3D11CreateDeviceAndSwapChain called! IDXGIAdapter: 0x{:X}, SDKVersion: 0x{:X}, DriverType: 0x{:X}", (size_t)pAdapter, SDKVersion, (size_t)DriverType);
-
-        if (pSwapChainDesc != nullptr)
-        {
-            spdlog::info("Window Handle: 0x{:X}, Resolution: {}x{}", (size_t)pSwapChainDesc->OutputWindow, pSwapChainDesc->BufferDesc.Width, pSwapChainDesc->BufferDesc.Height);
-        }
+        spdlog::info("D3D11CreateDeviceAndSwapChain called!");
 
         if (firstTime)
         {
@@ -315,15 +259,9 @@ namespace NL::D3D11Hooks
             {
                 spdlog::info("D3D11CreateDeviceAndSwapChain succeeded!");
 
-                // You can modify or store the created objects here
-                // For example, you could hook the SwapChain's Present method next
-
-                // Example: Access the device and log info
                 if (ppDevice != nullptr && *ppDevice != nullptr)
                 {
-                    spdlog::info("Device Ptr: 0x{:X}", (size_t)(*ppDevice));
-                    spdlog::info("Device Feature Level: 0x{:X}", (size_t)(*ppDevice)->GetFeatureLevel());
-                    spdlog::info("Flags: 0x{:X}", (size_t)(*ppDevice)->GetCreationFlags());
+                    skyrimD3D11Device = *ppDevice;
                 }
             }
             else
@@ -364,17 +302,7 @@ namespace NL::D3D11Hooks
                 return false;
             }
         }
-        /*
-        // Get the address of the original D3D11CreateDevice function
-        Original_D3D11CreateDevice = reinterpret_cast<D3D11CreateDevice_t>(
-            GetProcAddress(d3d11Module, "D3D11CreateDevice"));
 
-        if (!Original_D3D11CreateDevice)
-        {
-            spdlog::error("Failed to get address of D3D11CreateDevice");
-            return false;
-        }
-        */
         // Get the address of the original D3D11CreateDeviceAndSwapChain function
         Original_D3D11CreateDeviceAndSwapChain = reinterpret_cast<D3D11CreateDeviceAndSwapChain_t>(
             GetProcAddress(d3d11Module, "D3D11CreateDeviceAndSwapChain"));
@@ -390,7 +318,6 @@ namespace NL::D3D11Hooks
         DetourUpdateThread(GetCurrentThread());
 
         // Attach the detour
-        //DetourAttach(&(PVOID&)Original_D3D11CreateDevice, Hooked_D3D11CreateDevice);
         DetourAttach(&(PVOID&)Original_D3D11CreateDeviceAndSwapChain, Hooked_D3D11CreateDeviceAndSwapChain);
 
         // Commit the transaction
@@ -411,7 +338,6 @@ namespace NL::D3D11Hooks
         DetourUpdateThread(GetCurrentThread());
 
         // Detach the detour
-        //DetourDetach(&(PVOID&)Original_D3D11CreateDevice, Hooked_D3D11CreateDevice);
         DetourDetach(&(PVOID&)Original_D3D11CreateDeviceAndSwapChain, Hooked_D3D11CreateDeviceAndSwapChain);
 
         LONG error = DetourTransactionCommit();

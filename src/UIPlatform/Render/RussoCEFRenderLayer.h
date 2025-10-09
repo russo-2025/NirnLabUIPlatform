@@ -36,6 +36,8 @@ namespace NL::Render
         constexpr static inline uint32_t SLOT_COUNT = 4;
         std::array<Slot, SLOT_COUNT> m_slots;
 
+        static constexpr UINT64 KM_PRODUCER = 0;
+        static constexpr UINT64 KM_CONSUMER = 1;
         static constexpr uint32_t kInvalid = UINT32_MAX;
         Microsoft::WRL::ComPtr<ID3D11Query> m_copyDoneQuery;
 

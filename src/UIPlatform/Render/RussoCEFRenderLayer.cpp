@@ -26,6 +26,11 @@ namespace NL::Render
     {
         IRenderLayer::Init(a_renderData);
 
+        if (D3D11Hooks::GetHookedSkyrimD3D11Device() != m_renderData->device)
+        {
+            FATAL_ERROR("{}::Init: skyrim d3d11 device does not match hooked device", NameOf(RussoCEFRenderLayer));
+        }
+
         if (!D3D11Utils::IsDxgi11Device(m_renderData->device))
         {
             FATAL_ERROR("{}::Init: skyrim d3d11 device is not a DXGI 1.1 device", NameOf(RussoCEFRenderLayer));
@@ -165,16 +170,18 @@ namespace NL::Render
     {
         const uint32_t start = m_nextWrite.load(std::memory_order_relaxed);
 
+        // first try to find a completely free slot
         for (uint32_t a = 0; a < SLOT_COUNT; ++a)
         {
             const uint32_t idx = (start + a) % SLOT_COUNT;
             auto& s = m_slots[idx];
-            if (s.mutexP->AcquireSync(0, 0) == S_OK)
+            if (s.mutexP->AcquireSync(KM_PRODUCER, 0) == S_OK)
             {
                 return idx;
             }
         }
 
+        // then try to find a slot that is not latched by consumer
         const uint32_t latched = m_latchedSlot.load(std::memory_order_acquire);
         for (uint32_t a = 0; a < SLOT_COUNT; ++a)
         {
@@ -184,11 +191,14 @@ namespace NL::Render
                 continue;
             }
 
+            // try to acquire with key 1 (in use by consumer)
             auto& s = m_slots[idx];
-            if (s.mutexP->AcquireSync(1, 0) == S_OK)
+            if (s.mutexP->AcquireSync(KM_CONSUMER, 0) == S_OK)
             {
-                s.mutexP->ReleaseSync(0);
-                if (s.mutexP->AcquireSync(0, 0) == S_OK)
+                // release key 0 (free) if held
+                s.mutexP->ReleaseSync(KM_PRODUCER);
+                // now try to acquire with key 0 (free)
+                if (s.mutexP->AcquireSync(KM_PRODUCER, 0) == S_OK)
                 {
                     return idx;
                 }
@@ -207,7 +217,7 @@ namespace NL::Render
         src->GetDesc(&db);
         if (da.Width != db.Width || da.Height != db.Height || da.Format != db.Format)
         {
-            s.mutexP->ReleaseSync(0);
+            s.mutexP->ReleaseSync(KM_PRODUCER);
             return false;
         }
 
@@ -219,7 +229,7 @@ namespace NL::Render
             std::this_thread::yield();
         }
 
-        s.mutexP->ReleaseSync(1);
+        s.mutexP->ReleaseSync(KM_CONSUMER);
 
         m_latestUpdated.store(idx, std::memory_order_release);
         uint32_t next_id = (idx + 1) % SLOT_COUNT;
@@ -259,10 +269,13 @@ namespace NL::Render
             return m_slots[latched].srvC.Get();
         }
 
-        if (m_slots[latest].mutexC->AcquireSync(1, 0) == S_OK)
+        if (m_slots[latest].mutexC->AcquireSync(KM_CONSUMER, 0) == S_OK)
         {
             if (latched != kInvalid)
-                m_slots[latched].mutexC->ReleaseSync(0);
+            {
+                m_slots[latched].mutexC->ReleaseSync(KM_PRODUCER);
+            }
+
             m_latchedSlot.store(latest, std::memory_order_release);
             return m_slots[latest].srvC.Get();
         }
@@ -341,10 +354,10 @@ namespace NL::Render
             FATAL_ERROR("{}::CreateSlot: failed CreateShaderResourceView(), code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
-        hr = m_slots[i].mutexC->AcquireSync(1, 0);
+        hr = m_slots[i].mutexC->AcquireSync(KM_CONSUMER, 0);
         if (hr == S_OK)
         {
-            m_slots[i].mutexC->ReleaseSync(0);
+            m_slots[i].mutexC->ReleaseSync(KM_PRODUCER);
         }
     }
 }

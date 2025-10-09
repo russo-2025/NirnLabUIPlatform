@@ -4,6 +4,7 @@ namespace NL::D3D11Utils
 {
     bool IsDxgi11Device(ID3D11Device* dev);
 
+    // debug
     void EnableD3D11InfoQueue(ID3D11Device* device);
 
     LUID GetAdapterLuidFromDevice(ID3D11Device* dev);
@@ -30,6 +31,7 @@ namespace NL::D3D11Hooks
 {
     bool Init();
     bool Shutdown();
+    ID3D11Device* GetHookedSkyrimD3D11Device();
 } // namespace NL::D3D11Hooks
 
 

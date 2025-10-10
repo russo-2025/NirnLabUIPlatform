@@ -45,6 +45,8 @@ namespace NL::Render
         std::atomic<uint32_t> m_latchedSlot{kInvalid};
         std::atomic<uint32_t> m_nextWrite{kInvalid};
 
+        std::atomic<bool> initialized{false};
+
         std::optional<uint32_t> ReserveSlotForWrite();
         bool CopyAndPublish(uint32_t idx, ID3D11Texture2D* src);
         bool UpdateFrame(ID3D11Texture2D* src);

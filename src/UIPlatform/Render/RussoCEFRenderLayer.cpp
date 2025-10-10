@@ -26,7 +26,7 @@ namespace NL::Render
     {
         IRenderLayer::Init(a_renderData);
 
-        if (D3D11Hooks::GetHookedSkyrimD3D11Device() != m_renderData->device)
+        if (D3D11Hooks::GetHookedSkyrimD3D11Device() != m_renderData->device || D3D11Hooks::GetHookedSkyrimD3D11Device() != RE::BSGraphics::Renderer::GetRendererData()->forwarder)
         {
             FATAL_ERROR("{}::Init: skyrim d3d11 device does not match hooked device", NameOf(RussoCEFRenderLayer));
         }
@@ -96,6 +96,10 @@ namespace NL::Render
 
         m_latestUpdated.store(kInvalid, std::memory_order_relaxed);
         m_latchedSlot = kInvalid;
+
+        spdlog::info("{}::Init: initialized successfully", NameOf(RussoCEFRenderLayer));
+
+        initialized.store(true, std::memory_order_release);
     }
 
     const inline ::DirectX::SimpleMath::Vector2 _Cef_Menu_Draw_Vector = {0.f, 0.f};
@@ -146,9 +150,7 @@ namespace NL::Render
         const RectList& dirtyRects,
         const CefAcceleratedPaintInfo& info)
     {
-        if (type == PET_POPUP ||
-            m_renderData == nullptr ||
-            m_deviceRender == nullptr)
+        if (type == PET_POPUP || !initialized.load(std::memory_order_acquire))
         {
             return;
         }

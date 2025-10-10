@@ -7,7 +7,10 @@ namespace NL::D3D11Utils
     {
         Microsoft::WRL::ComPtr<IDXGIDevice> x;
         if (FAILED(dev->QueryInterface(IID_PPV_ARGS(&x))))
-            return false;
+        {
+            return false; 
+        }
+
         Microsoft::WRL::ComPtr<IDXGIAdapter> a;
         x->GetAdapter(&a);
         Microsoft::WRL::ComPtr<IDXGIFactory1> f1;

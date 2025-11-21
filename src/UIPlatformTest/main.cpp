@@ -1,5 +1,4 @@
 #include "PCH.h"
-#include "TestCases/TestCases.hpp"
 
 NL::UI::Settings defaultSettings;
 NL::UI::Version nirnLabUIPlatformVersion = {.libVersion = NL::UI::LibVersion::AS_INT, .apiVersion = NL::UI::APIVersion::AS_INT};
@@ -54,15 +53,7 @@ extern "C" [[maybe_unused]] DLLEXPORT bool SKSEPlugin_Query(::SKSE::QueryInterfa
 
 extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_skse)
 {
-    if (a_skse->IsEditor())
-    {
-        return false;
-    }
-
-    // SKSE
-    SKSE::Init(a_skse);
-    SKSE::AllocTrampoline(1024);
-    InitLog();
+    static bool s_canUseAPI = false;
     SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* a_msg) {
         switch (a_msg->type)
         {
@@ -88,6 +79,65 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
             break;
         }
     });
+}
+
+void Init2ndMethodToGetAPI()
+{
+    SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* a_msg) {
+        switch (a_msg->type)
+        {
+        case SKSE::MessagingInterface::kInputLoaded:
+            // All plugins are loaded
+            try
+            {
+                NL::UI::IUIPlatformAPI* api = nullptr;
+                NL::UI::Settings defaultSettings;
+
+                if (NL::UI::DllLoader::CreateOrGetUIPlatformAPIWithVersionCheck(&api, &defaultSettings, NL::UI::APIVersion::AS_INT, PLUGIN_NAME))
+                {
+                    NL::UI::TestCase::StartTests(api);
+                }
+                else
+                {
+                    spdlog::error("Failed to load NirnLabUIPlatform API :(");
+                }
+            }
+            catch (const std::exception& err)
+            {
+                spdlog::error("Failed to load NirnLabUIPlatform API, {}", err.what());
+            }
+            break;
+        default:
+            break;
+        }
+    });
+}
+
+void Init3rdMethodToGetAPI()
+{
+    SKSE::GetMessagingInterface()->RegisterListener([](SKSE::MessagingInterface::Message* a_msg) {
+        NL::UI::SKSELoader::ProcessSKSEMessage(a_msg);
+    });
+    NL::UI::SKSELoader::GetUIPlatformAPIWithVersionCheck([](NL::UI::IUIPlatformAPI* a_api) {
+        NL::UI::TestCase::StartTests(a_api);
+    });
+}
+
+SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
+{
+    if (a_skse->IsEditor())
+    {
+        return false;
+    }
+
+    // SKSE
+    SKSE::Init(a_skse);
+    SKSE::AllocTrampoline(1024);
+    InitLog();
+    // First method may not work correctly with some plugins
+    // Init1stMethodToGetAPI();
+    // Init2ndMethodToGetAPI();
+    Init3rdMethodToGetAPI();
 
     const auto iniCollection = RE::INISettingCollection::GetSingleton();
     // [General]

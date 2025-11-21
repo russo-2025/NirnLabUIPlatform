@@ -8,6 +8,7 @@
 #include "JS/JSFunctionStorage.h"
 #include "JS/JSEventFuncInfo.h"
 #include "Converters/CefValueToJSONConverter.h"
+#include "Converters/KeyInputConverter.h"
 
 namespace NL::CEF
 {
@@ -43,10 +44,7 @@ namespace NL::CEF
         float& m_currentMousePosX = RE::MenuCursor::GetSingleton()->cursorPosX;
         float& m_currentMousePosY = RE::MenuCursor::GetSingleton()->cursorPosY;
         CefMouseEvent m_lastCefMouseEvent;
-        CefKeyEvent m_lastCharCefKeyEvent;
-        std::uint32_t m_cefKeyModifiers = 0;
-        std::uint32_t m_lastScanCode = 0;
-        float m_keyHeldDuration = 0;
+        NL::Converters::KeyInputConverter m_keyInputConverter;
 
         std::uint32_t m_toggleFocusKeyCode1 = 0;
         std::uint32_t m_toggleFocusKeyCode2 = 0;
@@ -63,15 +61,11 @@ namespace NL::CEF
         sigslot::scoped_connection m_onMainFrameLoadEnd_Connection;
 
     public:
-        DefaultBrowser(
-            std::shared_ptr<spdlog::logger> a_logger,
-            CefRefPtr<NirnLabCefClient> a_cefClient,
-            std::shared_ptr<NL::JS::JSFunctionStorage> a_jsFuncStorage);
+        DefaultBrowser(std::shared_ptr<spdlog::logger> a_logger,
+                       CefRefPtr<NirnLabCefClient> a_cefClient,
+                       std::shared_ptr<NL::JS::JSFunctionStorage> a_jsFuncStorage);
         ~DefaultBrowser() override;
 
-        void UpdateCefKeyModifiers(const RE::ButtonEvent* a_event, const cef_event_flags_t a_flags);
-        void ClearCefKeyModifiers();
-        void UpdateCefKeyModifiersFromVK(const RE::ButtonEvent* a_event, const std::uint32_t a_vkCode);
         void CheckToggleFocusKeys(const RE::ButtonEvent* a_event);
         void CheckToggleVisibleKeys(const RE::ButtonEvent* a_event);
 

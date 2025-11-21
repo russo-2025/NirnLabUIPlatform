@@ -14,12 +14,8 @@ namespace NL::Menus
 
         HRESULT hResult = 0;
         ID3D11Device3* device3 = nullptr;
-        hResult = device->QueryInterface(__uuidof(ID3D11Device3), (void**)&device3);
-        if (FAILED(hResult))
-        {
-            const auto errorMsg = fmt::format("{}: failed to QueryInterface() with {} and result {}", NameOf(MultiLayerMenu), NameOf(ID3D11Device1), hResult);
-            throw std::runtime_error(errorMsg);
-        }
+        hResult = device->QueryInterface<ID3D11Device3>(&device3);
+        CheckHresultThrow(hResult, fmt::format("{}: failed to query interface {}", NameOf(MultiLayerMenu), NameOf(ID3D11Device1)));
 
         ID3D11DeviceContext3* immediateContext = nullptr;
         device3->GetImmediateContext3(&immediateContext);
@@ -53,6 +49,7 @@ namespace NL::Menus
         NL::Utils::PushFront<RE::BSTEventSink<RE::InputEvent*>>(RE::BSInputDeviceManager::GetSingleton()->sinks, this);
         inputEventSource->lock.Unlock();
 
+        // todo: move to settings
         NL::Services::InputLangSwitchService::GetSingleton().SetActive(true);
 
 #ifdef __ENABLE_DEBUG_INFO
@@ -222,7 +219,6 @@ namespace NL::Menus
         }
 
         auto inputEvent = *a_event;
-        RE::InputEvent* nextEvent = nullptr;
         auto result = RE::BSEventNotifyControl::kContinue;
         if (!CanProcess(inputEvent)) [[unlikely]]
         {
@@ -232,9 +228,6 @@ namespace NL::Menus
         std::lock_guard<std::mutex> lock(m_mapMenuMutex);
         while (inputEvent != nullptr)
         {
-            nextEvent = inputEvent->next;
-            inputEvent->next = nullptr;
-
             for (const auto& subMenu : m_menuMap)
             {
                 switch (inputEvent->GetEventType())
@@ -258,7 +251,6 @@ namespace NL::Menus
                 }
             }
 
-            inputEvent->next = nextEvent;
             inputEvent = inputEvent->next;
         }
 

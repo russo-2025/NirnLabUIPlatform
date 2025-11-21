@@ -42,6 +42,63 @@ namespace NL::Controllers
             }
             NL::Services::UIPlatformService::GetSingleton().Shutdown();
         });
+
+        SKSE::GetMessagingInterface()->RegisterListener(nullptr, [](SKSE::MessagingInterface::Message* a_msg) {
+            if (std::strcmp(a_msg->sender, "SKSE") == 0)
+            {
+                return;
+            }
+
+            auto& controller = PublicAPIController::GetSingleton();
+            switch (a_msg->type)
+            {
+            case NL::UI::APIMessageType::RequestVersion:
+                spdlog::info("{}: Request version data from \"{}\"", NameOf(PublicAPIController), a_msg->sender);
+                SKSE::GetMessagingInterface()->Dispatch(NL::UI::APIMessageType::ResponseVersion,
+                                                        static_cast<void*>(controller.GetVersionMessage()),
+                                                        sizeof(*controller.GetVersionMessage()),
+                                                        a_msg->sender);
+                break;
+            case NL::UI::APIMessageType::RequestAPI: {
+                if (a_msg->data == nullptr || a_msg->dataLen != sizeof(NL::UI::RequestAPIMessage))
+                {
+                    spdlog::error("{}: INVALID request api from \"{}\". No data.", NameOf(PublicAPIController), a_msg->sender);
+                    return;
+                }
+                else
+                {
+                    spdlog::info("{}: Request api from \"{}\"", NameOf(PublicAPIController), a_msg->sender);
+                }
+
+                if (!controller.InitIfNotPlatformService(static_cast<NL::UI::Settings*>(a_msg->data)))
+                {
+                    spdlog::error("{}: Can't response API because ui platform failed to init", NameOf(PublicAPIController));
+                    break;
+                }
+                SKSE::GetMessagingInterface()->Dispatch(NL::UI::APIMessageType::ResponseAPI,
+                                                        static_cast<void*>(controller.GetAPIMessage()),
+                                                        sizeof(*controller.GetAPIMessage()),
+                                                        a_msg->sender);
+                break;
+            }
+            default:
+                break;
+            }
+        });
+    }
+
+    bool PublicAPIController::InitIfNotPlatformService(const NL::UI::Settings* a_settings)
+    {
+        std::lock_guard locker(m_initPlatformServiceMutex);
+
+        auto& platformService = NL::Services::UIPlatformService::GetSingleton();
+        if (platformService.IsInited())
+        {
+            return true;
+        }
+
+        SetSettingsProvider(a_settings);
+        return platformService.InitAndShowMenuWithSettings(GetSettingsProvider());
     }
 
     void PublicAPIController::SetSettingsProvider(const NL::UI::Settings* a_settings)

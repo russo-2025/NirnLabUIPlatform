@@ -21,6 +21,18 @@ namespace NL::Render
         Microsoft::WRL::ComPtr<ID3D11Device1> m_deviceCopy1;
         Microsoft::WRL::ComPtr<ID3D11DeviceContext> m_immContextCopy;
 
+#ifdef __ENABLE_DEBUG_INFO
+        size_t instanceID = 0;
+        std::chrono::steady_clock::time_point lastTime = std::chrono::high_resolution_clock::now();
+        size_t frames = 0;
+
+        long long totalDelayMS = 0;
+        size_t delayCount = 0;
+
+        size_t updateRateTextIndex = 0;
+        size_t delayTextIndex = 0;
+#endif
+
         struct Slot
         {
             // producer side
@@ -32,6 +44,10 @@ namespace NL::Render
             Microsoft::WRL::ComPtr<ID3D11Texture2D> texC = Microsoft::WRL::ComPtr<ID3D11Texture2D>();
             Microsoft::WRL::ComPtr<IDXGIKeyedMutex> mutexC = Microsoft::WRL::ComPtr<IDXGIKeyedMutex>();
             Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> srvC = Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>();
+
+#ifdef __ENABLE_DEBUG_INFO
+            std::chrono::steady_clock::time_point updateTime = std::chrono::high_resolution_clock::now();
+#endif
         };
         constexpr static inline uint32_t SLOT_COUNT = 4;
         std::array<Slot, SLOT_COUNT> m_slots;
@@ -50,7 +66,7 @@ namespace NL::Render
         std::optional<uint32_t> ReserveSlotForWrite();
         bool CopyAndPublish(uint32_t idx, ID3D11Texture2D* src);
         bool UpdateFrame(ID3D11Texture2D* src);
-        ID3D11ShaderResourceView* AcquireFrame();
+        RussoCEFRenderLayer::Slot* AcquireFrame();
         void CreateSlot(uint32_t i);
 
     public:

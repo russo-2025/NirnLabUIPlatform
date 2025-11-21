@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.23)
 option(BUILD_AS_SHARED "Build as dll skse plugin else build as static lib" ON)
 option(SKYRIM_SE "Legacy Skyrim SE (1.5) build" ON)
 option(BUILD_TEST_PLUGIN "build test plugin" OFF)
+option(ENABLE_DEBUG_INFO "Enable debug info macros" OFF)
 
 if(SKYRIM_SE)
     set(SKYRIM_IS_AE OFF)
@@ -282,6 +283,14 @@ find_path(DETOURS_INCLUDE_DIRS "detours/detours.h")
 find_library(DETOURS_LIBRARY detours REQUIRED)
 target_include_directories(${UIPlatformProjectName} PRIVATE ${DETOURS_INCLUDE_DIRS})
 target_link_libraries(${UIPlatformProjectName} PRIVATE ${DETOURS_LIBRARY})
+
+if(ENABLE_DEBUG_INFO)
+    target_compile_definitions(
+        ${UIPlatformProjectName}
+        PRIVATE
+            __ENABLE_DEBUG_INFO
+    )
+endif()
 
 target_compile_definitions(
     ${UIPlatformProjectName}

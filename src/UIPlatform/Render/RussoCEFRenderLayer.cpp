@@ -1,5 +1,6 @@
 #include "RussoCEFRenderLayer.h"
 #include "Utils/D3D11Utils.h"
+#include "Render/DebugRenderLayer.h"
 
 #define FATAL_ERROR(...)                           \
     {                                              \
@@ -100,6 +101,18 @@ namespace NL::Render
         spdlog::info("{}::Init: initialized successfully", NameOf(RussoCEFRenderLayer));
 
         initialized.store(true, std::memory_order_release);
+
+#ifdef __ENABLE_DEBUG_INFO
+        static size_t instanceCount = 0;
+        instanceID = instanceCount;
+        instanceCount++;
+
+        std::wstring updateRateText = L"UpdateRate[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(0);
+        updateRateTextIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(updateRateText));
+
+        std::wstring delayText = L"Delay[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(0);
+        delayTextIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(delayText));
+#endif
     }
 
     const inline ::DirectX::SimpleMath::Vector2 _Cef_Menu_Draw_Vector = {0.f, 0.f};
@@ -110,12 +123,42 @@ namespace NL::Render
             return;
         }
 
-        ID3D11ShaderResourceView* srv = AcquireFrame();
+        RussoCEFRenderLayer::Slot* slot = AcquireFrame();
+        if (!slot)
+        {
+            return;
+        }
+
+        ID3D11ShaderResourceView* srv = slot->srvC.Get();
 
         if (!srv)
         {
             return;
         }
+
+
+#ifdef __ENABLE_DEBUG_INFO
+        frames++;
+        auto currentTime = std::chrono::high_resolution_clock::now();
+
+        delayCount++;
+        totalDelayMS += std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - slot->updateTime).count();
+
+        double elapsed = std::chrono::duration<double>(currentTime - lastTime).count();
+        if (elapsed >= 1.0)
+        {
+            std::wstring updateRateText = L"UpdateRate[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(frames);
+            Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(updateRateTextIndex, std::move(updateRateText));
+
+            std::wstring delayText = L"Delay[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(totalDelayMS / delayCount);
+            Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(delayTextIndex, std::move(delayText));
+
+            delayCount = 0;
+            totalDelayMS = 0;
+            frames = 0;
+            lastTime = currentTime;
+        }
+#endif
 
         m_renderData->spriteBatch->Begin(::DirectX::SpriteSortMode_Deferred, m_renderData->commonStates->NonPremultiplied());
 
@@ -231,6 +274,9 @@ namespace NL::Render
             std::this_thread::yield();
         }
 
+#ifdef __ENABLE_DEBUG_INFO
+        s.updateTime = std::chrono::high_resolution_clock::now();
+#endif
         s.mutexP->ReleaseSync(KM_CONSUMER);
 
         m_latestUpdated.store(idx, std::memory_order_release);
@@ -256,19 +302,19 @@ namespace NL::Render
         return CopyAndPublish(slot.value(), src);
     }
 
-    ID3D11ShaderResourceView* RussoCEFRenderLayer::AcquireFrame()
+    RussoCEFRenderLayer::Slot* RussoCEFRenderLayer::AcquireFrame()
     {
         const uint32_t latest = m_latestUpdated.load(std::memory_order_acquire);
         uint32_t latched = m_latchedSlot.load(std::memory_order_relaxed);
 
         if (latest == kInvalid)
         {
-            return (latched == kInvalid) ? nullptr : m_slots[latched].srvC.Get();
+            return (latched == kInvalid) ? nullptr : &m_slots[latched];
         }
 
         if (latched == latest)
         {
-            return m_slots[latched].srvC.Get();
+            return &m_slots[latched];
         }
 
         if (m_slots[latest].mutexC->AcquireSync(KM_CONSUMER, 0) == S_OK)
@@ -279,10 +325,10 @@ namespace NL::Render
             }
 
             m_latchedSlot.store(latest, std::memory_order_release);
-            return m_slots[latest].srvC.Get();
+            return &m_slots[latest];
         }
 
-        return (latched == kInvalid) ? nullptr : m_slots[latched].srvC.Get();
+        return (latched == kInvalid) ? nullptr : &m_slots[latched];
     }
 
     void RussoCEFRenderLayer::CreateSlot(uint32_t i)
@@ -301,8 +347,18 @@ namespace NL::Render
         td.CPUAccessFlags = 0;
         td.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX | D3D11_RESOURCE_MISC_SHARED_NTHANDLE;
 
+        const UINT dataSize = m_renderData->width * m_renderData->height * 4;
+        std::vector<uint8_t> initialData(dataSize, 0);
+
+        D3D11_SUBRESOURCE_DATA subresourceData{};
+        subresourceData.pSysMem = initialData.data();
+        subresourceData.SysMemPitch = m_renderData->width * 4;
+        subresourceData.SysMemSlicePitch = dataSize;
+
+        m_slots[i] = Slot{};
+
         // producer - create texture
-        auto hr = m_deviceCopy->CreateTexture2D(&td, nullptr, m_slots[i].texP.ReleaseAndGetAddressOf());
+        auto hr = m_deviceCopy->CreateTexture2D(&td, &subresourceData, m_slots[i].texP.ReleaseAndGetAddressOf());
         if (FAILED(hr))
         {
             FATAL_ERROR("{}::CreateSlot: failed CreateTexture2D() for producer, code {:X}", NameOf(RussoCEFRenderLayer), hr);

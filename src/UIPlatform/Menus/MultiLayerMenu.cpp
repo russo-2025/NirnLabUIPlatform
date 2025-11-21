@@ -1,4 +1,5 @@
 ﻿#include "MultiLayerMenu.h"
+#include "Render/DebugRenderLayer.h"
 
 namespace NL::Menus
 {
@@ -53,6 +54,10 @@ namespace NL::Menus
         inputEventSource->lock.Unlock();
 
         NL::Services::InputLangSwitchService::GetSingleton().SetActive(true);
+
+#ifdef __ENABLE_DEBUG_INFO
+        Render::DebugRenderLayer::GetSingleton()->Init(&m_renderData);
+#endif
     }
 
     MultiLayerMenu::~MultiLayerMenu()
@@ -131,6 +136,9 @@ namespace NL::Menus
             m_logger->error("{}: {}", NameOf(MultiLayerMenu), err.what());
         }
 
+#ifdef __ENABLE_DEBUG_INFO
+        Render::DebugRenderLayer::GetSingleton()->Draw();
+#endif
         // fix enb
         m_renderData.deviceContext->VSSetConstantBuffers(0, 1, &vsConstantBuffer);
 

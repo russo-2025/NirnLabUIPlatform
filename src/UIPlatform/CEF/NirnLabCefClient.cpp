@@ -4,7 +4,11 @@ namespace NL::CEF
 {
     NirnLabCefClient::NirnLabCefClient()
     {
+#ifdef __ENABLE_ORIGINAL_CODE
         m_cefRenderLayer = NL::Render::CEFCopyRenderLayer::make_shared();
+#else
+        m_cefRenderLayer = NL::Render::RussoCEFRenderLayer::make_shared();
+#endif
     }
 
     std::shared_ptr<NL::Render::IRenderLayer> NirnLabCefClient::GetRenderLayer()

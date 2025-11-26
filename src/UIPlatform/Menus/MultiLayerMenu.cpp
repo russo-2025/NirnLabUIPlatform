@@ -33,11 +33,20 @@ namespace NL::Menus
         m_renderData.height = textDesc.Height;
 
         // IMenu props
+#ifdef __ENABLE_ORIGINAL_CODE
         depthPriority = 8;
         menuFlags.set(RE::UI_MENU_FLAGS::kAlwaysOpen);
         menuFlags.set(RE::UI_MENU_FLAGS::kCustomRendering);
         menuFlags.set(RE::UI_MENU_FLAGS::kAssignCursorToRenderer);
         inputContext = Context::kNone;
+#else
+        depthPriority = 12;
+        menuFlags.set(RE::UI_MENU_FLAGS::kAlwaysOpen);
+        menuFlags.set(RE::UI_MENU_FLAGS::kAllowSaving);
+        menuFlags.set(RE::UI_MENU_FLAGS::kCustomRendering);
+        menuFlags.set(RE::UI_MENU_FLAGS::kAssignCursorToRenderer);
+        inputContext = Context::kNone;
+#endif
 
         RE::UI::GetSingleton()->pad17D = false;
         RE::UI::GetSingleton()->AddEventSink(static_cast<RE::BSTEventSink<RE::MenuOpenCloseEvent>*>(this));
@@ -49,6 +58,12 @@ namespace NL::Menus
 
         // todo: move to settings
         NL::Services::InputLangSwitchService::GetSingleton().SetActive(true);
+
+#ifndef __ENABLE_ORIGINAL_CODE
+    #ifdef __ENABLE_DEBUG_INFO
+        Render::DebugRenderLayer::GetSingleton()->Init(&m_renderData);
+    #endif
+#endif
     }
 
     MultiLayerMenu::~MultiLayerMenu()
@@ -105,6 +120,8 @@ namespace NL::Menus
 
     void MultiLayerMenu::PostDisplay()
     {
+
+#ifdef __ENABLE_ORIGINAL_CODE
         std::lock_guard<std::mutex> lock(m_mapMenuMutex);
         if (m_menuMap.empty())
         {
@@ -127,6 +144,39 @@ namespace NL::Menus
         }
         m_renderData.spriteBatch->End();
         m_renderData.drawLock.Unlock();
+#else
+        std::lock_guard<std::mutex> lock(m_mapMenuMutex);
+        if (m_menuMap.empty())
+        {
+            return;
+        }
+        
+        // fix enb
+        ID3D11Buffer* vsConstantBuffer = nullptr;
+        m_renderData.deviceContext->VSGetConstantBuffers(0, 1, &vsConstantBuffer);
+
+        try
+        {
+            for (const auto& subMenu : m_menuMap)
+            {
+                subMenu.second->Draw();
+            }
+        }
+        catch (const std::exception& err)
+        {
+            m_logger->error("{}: {}", NameOf(MultiLayerMenu), err.what());
+        }
+
+#ifdef __ENABLE_DEBUG_INFO
+        Render::DebugRenderLayer::GetSingleton()->Draw();
+#endif
+
+        // fix enb
+        m_renderData.deviceContext->VSSetConstantBuffers(0, 1, &vsConstantBuffer);
+
+        if (vsConstantBuffer)
+            vsConstantBuffer->Release();
+#endif
     }
 
     RE::UI_MESSAGE_RESULTS MultiLayerMenu::ProcessMessage(RE::UIMessage& a_message)

@@ -18,6 +18,7 @@
     "palsigslot",
     "spdlog",
     "commonlibsse-ng",
-    "nlohmann-json"
+    "nlohmann-json",
+		"detours"
   ]
 }

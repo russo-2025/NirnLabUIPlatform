@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.23)
 
 option(BUILD_AS_SHARED "Build as dll skse plugin else build as static lib" ON)
+option(ENABLE_DEBUG_INFO "Enable debug info macros" OFF)
 
 # Version
 set(LIB_MAJOR_VERSION 3)
@@ -18,8 +19,8 @@ set(VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_LIST_DIR}/overlay_triplets")
 set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/overlay_ports")
 
 # Includes pdb files in release mode
-#set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
-#set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG /OPT:REF /OPT:ICF")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
+set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG /OPT:REF /OPT:ICF")
 
 # Options
 set(CMAKE_CXX_STANDARD 23)
@@ -247,6 +248,20 @@ target_link_libraries(
         cef
         nlohmann_json::nlohmann_json
 )
+
+# Detours
+find_path(DETOURS_INCLUDE_DIRS "detours/detours.h")
+find_library(DETOURS_LIBRARY detours REQUIRED)
+target_include_directories(${UIPlatformProjectName} PRIVATE ${DETOURS_INCLUDE_DIRS})
+target_link_libraries(${UIPlatformProjectName} PRIVATE ${DETOURS_LIBRARY})
+
+if(ENABLE_DEBUG_INFO)
+    target_compile_definitions(
+        ${UIPlatformProjectName}
+        PRIVATE
+            __ENABLE_DEBUG_INFO
+    )
+endif()
 
 target_compile_definitions(
     ${UIPlatformProjectName}

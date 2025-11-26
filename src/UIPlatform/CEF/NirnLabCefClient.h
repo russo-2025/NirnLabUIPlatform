@@ -1,7 +1,11 @@
 #pragma once
 
 #include "PCH.h"
+#ifdef __ENABLE_ORIGINAL_CODE
 #include "Render/CEFCopyRenderLayer.h"
+#else
+#include "Render/RussoCEFRenderLayer.h"
+#endif
 #include "Render/CEFRenderLayer.h"
 
 namespace NL::CEF
@@ -14,7 +18,12 @@ namespace NL::CEF
         IMPLEMENT_REFCOUNTING(NirnLabCefClient);
 
     protected:
+#ifdef __ENABLE_ORIGINAL_CODE
         std::shared_ptr<NL::Render::CEFCopyRenderLayer> m_cefRenderLayer = nullptr;
+#else
+        std::shared_ptr<NL::Render::RussoCEFRenderLayer> m_cefRenderLayer = nullptr;
+#endif
+
         CefRefPtr<CefBrowser> m_cefBrowser = nullptr;
 
     public:

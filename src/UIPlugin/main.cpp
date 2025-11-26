@@ -108,7 +108,13 @@ static inline void LoadNirnLabUILib()
 {
     if (g_nirnLabUILib == nullptr)
     {
+#ifdef __ENABLE_ORIGINAL_CODE
         auto nirnLabUILib = LoadLibraryA(NL_UI_LIB_NAME);
+#else
+        std::string libName = std::string(NL_UI_LIB_NAME) + std::string(".dll");
+        auto nirnLabUILib = LoadLibraryA(libName.c_str());
+#endif
+
         if (!nirnLabUILib)
         {
             std::string errDesc;
@@ -151,6 +157,7 @@ static inline TFunc ExecLibFunc(const char* a_funcName)
     return func;
 }
 
+#ifdef __ENABLE_ORIGINAL_CODE
 extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
     SKSE::PluginVersionData v{};
     v.pluginVersion = NL::UI::LibVersion::AS_INT;
@@ -181,3 +188,46 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
         return false;
     }
 }
+
+#else
+
+extern "C" [[maybe_unused]] __declspec(dllexport) constinit auto SKSEPlugin_Version = []() noexcept {
+    SKSE::PluginVersionData v;
+
+    v.PluginVersion(NL::UI::LibVersion::AS_INT);
+    v.PluginName(NL::UI::LibVersion::PROJECT_NAME);
+    v.AuthorName("kkEngine"sv);
+    v.UsesAddressLibrary(true);
+    v.UsesStructsPost629(true);
+
+    return v;
+}();
+
+extern "C" [[maybe_unused]] __declspec(dllexport) bool SKSEAPI SKSEPlugin_Query(const SKSE::QueryInterface*, SKSE::PluginInfo* pluginInfo)
+{
+    pluginInfo->name = NL::UI::LibVersion::PROJECT_NAME;
+    pluginInfo->infoVersion = SKSE::PluginInfo::kVersion;
+    pluginInfo->version = NL::UI::LibVersion::AS_INT;
+    return true;
+}
+
+extern "C" void DLLEXPORT APIENTRY Initialize()
+{
+    auto preload = ExecLibFunc<PreloadFunc>("Initialize");
+    preload();
+}
+
+extern "C" [[maybe_unused]] __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_skse)
+{
+    try
+    {
+        auto entry = ExecLibFunc<EntryFunc>("Entry");
+        return entry(a_skse);
+    }
+    catch (const std::exception& e)
+    {
+        SKSE::stl::report_and_fail(fmt::format("Failed to load {}: {}", NL::UI::LibVersion::PROJECT_NAME, e.what()));
+        return false;
+    }
+}
+#endif

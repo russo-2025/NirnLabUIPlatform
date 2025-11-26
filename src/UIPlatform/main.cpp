@@ -1,6 +1,9 @@
 #include "PCH.h"
 #include "Hooks/ShutdownHook.hpp"
 #include "Controllers/PublicAPIController.h"
+#ifndef __ENABLE_ORIGINAL_CODE
+    #include "Utils/D3D11Utils.h"
+#endif
 
 inline void ShowMessageBox(const char* a_msg)
 {
@@ -88,6 +91,10 @@ extern "C"
             // Hooks
             NL::Hooks::WinProcHook::Install();
             NL::Hooks::ShutdownHook::Install();
+            
+#ifndef __ENABLE_ORIGINAL_CODE
+            NL::D3D11Hooks::Init();
+#endif
 
             // API controller
             NL::Controllers::PublicAPIController::GetSingleton().Init();

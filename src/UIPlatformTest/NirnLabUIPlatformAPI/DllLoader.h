@@ -19,7 +19,8 @@ namespace NL::UI::DllLoader
 {
     inline HMODULE GetNirnLabUILib()
     {
-        const auto handle = LoadLibrary(NL::UI::LibVersion::PROJECT_NAME);
+        std::string dllName = std::string(NL::UI::LibVersion::PROJECT_NAME) + ".dll";
+        const auto handle = LoadLibraryA(dllName.c_str());
         if (handle == nullptr)
         {
             const auto errCode = GetLastError();

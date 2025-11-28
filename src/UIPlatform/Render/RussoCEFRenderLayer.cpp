@@ -379,6 +379,8 @@ namespace NL::Render
             return &m_slots[latest];
         }
 
+        DEBUG_INFO_UPDATE_TEXT(acquireFrameVariantIndex, L"AcquireFrameVariant[" + std::to_wstring(instanceID) + L"]: latched");
+
         return (latched == kInvalid) ? nullptr : &m_slots[latched];
     }
 

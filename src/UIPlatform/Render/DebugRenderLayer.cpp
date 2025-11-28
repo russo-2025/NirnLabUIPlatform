@@ -27,6 +27,11 @@ namespace NL::Render
 
         static std::filesystem::path fontPath = L"Data\\NirnLabUIPlatform\\myfile.spritefont";
 
+        if (!std::filesystem::exists(fontPath) || !std::filesystem::is_regular_file(fontPath))
+        {
+            FATAL_ERROR("{}::Init: font file not found at path: {}", NameOf(DebugRenderLayer), fontPath.string());
+        }
+
         m_font = std::make_unique<DirectX::SpriteFont>(m_device.Get(), fontPath.wstring().c_str());
 
         AddTextLine(L"Test v.12");

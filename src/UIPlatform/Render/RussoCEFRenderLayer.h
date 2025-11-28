@@ -24,13 +24,23 @@ namespace NL::Render
 #ifdef __ENABLE_DEBUG_INFO
         size_t instanceID = 0;
         std::chrono::steady_clock::time_point lastTime = std::chrono::high_resolution_clock::now();
-        size_t frames = 0;
+
+        std::atomic<size_t> fps = 0;
+        size_t fpsTextIndex = 0;
 
         long long totalDelayMS = 0;
         size_t delayCount = 0;
-
-        size_t updateRateTextIndex = 0;
         size_t delayTextIndex = 0;
+
+        double totalUpdateWaitTimeMS = 0;
+        size_t UpdateWaitTimeCount = 0;
+        size_t updateWaitTimeIndex = 0;
+
+        size_t acquireFrameVariantIndex = 0;
+
+        std::atomic<size_t> droppedFrames = 0;
+        size_t droppedFramesTextIndex = 0;
+
 #endif
 
         struct Slot
@@ -47,6 +57,7 @@ namespace NL::Render
 
 #ifdef __ENABLE_DEBUG_INFO
             std::chrono::steady_clock::time_point updateTime = std::chrono::high_resolution_clock::now();
+            double updateWaitTimeMs = 0;
 #endif
         };
         constexpr static inline uint32_t SLOT_COUNT = 4;

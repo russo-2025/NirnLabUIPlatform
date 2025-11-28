@@ -1,4 +1,7 @@
 #include "MultiLayerMenu.h"
+#ifdef __ENABLE_DEBUG_INFO
+#include "Render/DebugRenderLayer.h"
+#endif
 
 namespace NL::Menus
 {

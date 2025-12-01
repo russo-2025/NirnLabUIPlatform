@@ -32,9 +32,9 @@ namespace NL::Render
         size_t delayCount = 0;
         size_t delayTextIndex = 0;
 
-        double totalUpdateWaitTimeMS = 0;
-        size_t UpdateWaitTimeCount = 0;
-        size_t updateWaitTimeIndex = 0;
+        //double totalUpdateWaitTimeMS = 0;
+        //size_t UpdateWaitTimeCount = 0;
+        //size_t updateWaitTimeIndex = 0;
 
         size_t acquireFrameVariantIndex = 0;
 
@@ -57,7 +57,7 @@ namespace NL::Render
 
 #ifdef __ENABLE_DEBUG_INFO
             std::chrono::steady_clock::time_point updateTime = std::chrono::high_resolution_clock::now();
-            double updateWaitTimeMs = 0;
+            //double updateWaitTimeMs = 0;
 #endif
         };
         constexpr static inline uint32_t SLOT_COUNT = 4;
@@ -66,7 +66,6 @@ namespace NL::Render
         static constexpr UINT64 KM_PRODUCER = 0;
         static constexpr UINT64 KM_CONSUMER = 1;
         static constexpr uint32_t kInvalid = UINT32_MAX;
-        Microsoft::WRL::ComPtr<ID3D11Query> m_copyDoneQuery;
 
         std::atomic<uint32_t> m_latestUpdated{kInvalid};
         std::atomic<uint32_t> m_latchedSlot{kInvalid};

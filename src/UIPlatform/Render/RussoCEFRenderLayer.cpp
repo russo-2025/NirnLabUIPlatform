@@ -70,6 +70,13 @@ namespace NL::Render
             FATAL_ERROR("{}::Init: failed QueryInterface() to deviceCopy1 ID3D11Device1, code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
+        Microsoft::WRL::ComPtr<IDXGIDevice1> dxgiDevice;
+        hr = deviceCopy->QueryInterface(IID_PPV_ARGS(&dxgiDevice));
+        if (SUCCEEDED(hr))
+        {
+            dxgiDevice->SetGPUThreadPriority(1); // от -7 до 7
+        }
+
         // debug
         //D3D11Utils::EnableD3D11InfoQueue(deviceCopy.Get());
 
@@ -79,13 +86,6 @@ namespace NL::Render
         if (!m_deviceCopy || !m_deviceCopy1 || !m_immContextCopy)
         {
             FATAL_ERROR("{}::Init: failed to create D3D11 device or context", NameOf(RussoCEFRenderLayer));
-        }
-        D3D11_QUERY_DESC queryDesc{};
-        queryDesc.Query = D3D11_QUERY_EVENT;
-        hr = m_deviceCopy->CreateQuery(&queryDesc, m_copyDoneQuery.GetAddressOf());
-        if (FAILED(hr))
-        {
-            FATAL_ERROR("{}::Init: failed CreateQuery(), code {:X}", NameOf(RussoCEFRenderLayer), hr);
         }
 
         if (m_renderData->width == 0 || m_renderData->height == 0)
@@ -124,8 +124,8 @@ namespace NL::Render
         std::wstring delayText = L"FrameDelay ms[" + std::to_wstring(instanceID) + L"]: 0";
         delayTextIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(delayText));
 
-        std::wstring updateWaitTimeText = L"UpdateWaitTime ms[" + std::to_wstring(instanceID) + L"]: 0";
-        updateWaitTimeIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(updateWaitTimeText));
+        //std::wstring updateWaitTimeText = L"UpdateWaitTime ms[" + std::to_wstring(instanceID) + L"]: 0";
+        //updateWaitTimeIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(updateWaitTimeText));
 
         std::wstring acquireFrameVariantText = L"AcquireFrameVariant[" + std::to_wstring(instanceID) + L"]: none";
         acquireFrameVariantIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(acquireFrameVariantText));
@@ -153,8 +153,8 @@ namespace NL::Render
         totalDelayMS += slot ? std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - slot->updateTime).count() : 0;
 
         // для среднего значения ожидания обновления текстуры (сколько прошло времени во время ожидания мьютекса)
-        UpdateWaitTimeCount++;
-        totalUpdateWaitTimeMS += slot ? slot->updateWaitTimeMs : 0.0;
+        //UpdateWaitTimeCount++;
+        //totalUpdateWaitTimeMS += slot ? slot->updateWaitTimeMs : 0.0;
 
         double elapsed = std::chrono::duration<double>(currentTime - lastTime).count();
         if (elapsed >= 1.0)
@@ -165,16 +165,16 @@ namespace NL::Render
             std::wstring delayText = L"FrameDelay ms[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(totalDelayMS / delayCount);
             Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(delayTextIndex, std::move(delayText));
 
-            std::wstring updateWaitTimeText = L"UpdateWaitTime ms[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(totalUpdateWaitTimeMS / UpdateWaitTimeCount);
-            Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(updateWaitTimeIndex, std::move(updateWaitTimeText));
+            //std::wstring updateWaitTimeText = L"UpdateWaitTime ms[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(totalUpdateWaitTimeMS / UpdateWaitTimeCount);
+            //Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(updateWaitTimeIndex, std::move(updateWaitTimeText));
 
             std::wstring droppedFramesText = L"DroppedFrames count[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(droppedFrames.exchange(0, std::memory_order_relaxed));
             Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(droppedFramesTextIndex, std::move(droppedFramesText));
 
             delayCount = 0;
             totalDelayMS = 0;
-            UpdateWaitTimeCount = 0;
-            totalUpdateWaitTimeMS = 0;
+            //UpdateWaitTimeCount = 0;
+            //totalUpdateWaitTimeMS = 0;
             lastTime = currentTime;
         }
 #endif
@@ -304,20 +304,8 @@ namespace NL::Render
 
         m_immContextCopy->CopyResource(s.texP.Get(), src);
 
-        m_immContextCopy->End(m_copyDoneQuery.Get());
-        while (S_OK != m_immContextCopy->GetData(m_copyDoneQuery.Get(), nullptr, 0, 0))
-        {
-            std::this_thread::yield();
-        }
-
-#ifdef __ENABLE_DEBUG_INFO
-        s.updateTime = std::chrono::high_resolution_clock::now();
-
-        std::chrono::duration<double, std::milli> updateWaitTimeMs = s.updateTime - waitStart;
-        s.updateWaitTimeMs = updateWaitTimeMs.count();
-#endif
-
         s.mutexP->ReleaseSync(KM_CONSUMER);
+        m_immContextCopy->Flush();
 
         m_latestUpdated.store(idx, std::memory_order_release);
         uint32_t next_id = (idx + 1) % SLOT_COUNT;
@@ -366,7 +354,7 @@ namespace NL::Render
             return &m_slots[latched];
         }
 
-        if (m_slots[latest].mutexC->AcquireSync(KM_CONSUMER, 0) == S_OK)
+        if (m_slots[latest].mutexC->AcquireSync(KM_CONSUMER, 1) == S_OK)
         {
             if (latched != kInvalid)
             {

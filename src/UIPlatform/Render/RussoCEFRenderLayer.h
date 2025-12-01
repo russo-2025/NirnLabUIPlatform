@@ -32,14 +32,10 @@ namespace NL::Render
         size_t delayCount = 0;
         size_t delayTextIndex = 0;
 
-        //double totalUpdateWaitTimeMS = 0;
-        //size_t UpdateWaitTimeCount = 0;
-        //size_t updateWaitTimeIndex = 0;
-
         size_t acquireFrameVariantIndex = 0;
 
-        std::atomic<size_t> droppedFrames = 0;
-        size_t droppedFramesTextIndex = 0;
+        std::atomic<size_t> freeSlotNotFound = 0;
+        size_t freeSlotNotFoundTextIndex = 0;
 
 #endif
 
@@ -54,6 +50,8 @@ namespace NL::Render
             Microsoft::WRL::ComPtr<ID3D11Texture2D> texC = Microsoft::WRL::ComPtr<ID3D11Texture2D>();
             Microsoft::WRL::ComPtr<IDXGIKeyedMutex> mutexC = Microsoft::WRL::ComPtr<IDXGIKeyedMutex>();
             Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> srvC = Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>();
+
+            std::atomic<uint64_t> sequence{0}; // updated by producer, read by consumer
 
 #ifdef __ENABLE_DEBUG_INFO
             std::chrono::steady_clock::time_point updateTime = std::chrono::high_resolution_clock::now();
@@ -70,6 +68,7 @@ namespace NL::Render
         std::atomic<uint32_t> m_latestUpdated{kInvalid};
         std::atomic<uint32_t> m_latchedSlot{kInvalid};
         std::atomic<uint32_t> m_nextWrite{kInvalid};
+        std::atomic<uint64_t> m_currentSequence = 0;
 
         std::atomic<bool> initialized{false};
 

@@ -74,7 +74,7 @@ namespace NL::Render
         hr = deviceCopy->QueryInterface(IID_PPV_ARGS(&dxgiDevice));
         if (SUCCEEDED(hr))
         {
-            dxgiDevice->SetGPUThreadPriority(7); // от -7 до 7
+            dxgiDevice->SetGPUThreadPriority(1); // от -7 до 7
         }
 
         // debug
@@ -124,11 +124,14 @@ namespace NL::Render
         std::wstring delayText = L"FrameDelay ms[" + std::to_wstring(instanceID) + L"]: 0";
         delayTextIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(delayText));
 
+        //std::wstring updateWaitTimeText = L"UpdateWaitTime ms[" + std::to_wstring(instanceID) + L"]: 0";
+        //updateWaitTimeIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(updateWaitTimeText));
+
         std::wstring acquireFrameVariantText = L"AcquireFrameVariant[" + std::to_wstring(instanceID) + L"]: none";
         acquireFrameVariantIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(acquireFrameVariantText));
 
-        std::wstring freeSlotNotFoundText = L"FreeSlotNotFoundForWrite count[" + std::to_wstring(instanceID) + L"]: 0";
-        freeSlotNotFoundTextIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(freeSlotNotFoundText));
+        std::wstring droppedFramesText = L"DroppedFrames count[" + std::to_wstring(instanceID) + L"]: 0";
+        droppedFramesTextIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(droppedFramesText));
 #endif
     }
 
@@ -149,6 +152,10 @@ namespace NL::Render
         delayCount++;
         totalDelayMS += slot ? std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - slot->updateTime).count() : 0;
 
+        // для среднего значения ожидания обновления текстуры (сколько прошло времени во время ожидания мьютекса)
+        //UpdateWaitTimeCount++;
+        //totalUpdateWaitTimeMS += slot ? slot->updateWaitTimeMs : 0.0;
+
         double elapsed = std::chrono::duration<double>(currentTime - lastTime).count();
         if (elapsed >= 1.0)
         {
@@ -158,12 +165,16 @@ namespace NL::Render
             std::wstring delayText = L"FrameDelay ms[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(totalDelayMS / delayCount);
             Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(delayTextIndex, std::move(delayText));
 
-            //std::wstring freeSlotNotFoundText = L"FreeSlotNotFoundForWrite count[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(freeSlotNotFound.exchange(0, std::memory_order_relaxed));
-            std::wstring freeSlotNotFoundText = L"FreeSlotNotFoundForWrite count[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(freeSlotNotFound.load(std::memory_order_relaxed));
-            Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(freeSlotNotFoundTextIndex, std::move(freeSlotNotFoundText));
+            //std::wstring updateWaitTimeText = L"UpdateWaitTime ms[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(totalUpdateWaitTimeMS / UpdateWaitTimeCount);
+            //Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(updateWaitTimeIndex, std::move(updateWaitTimeText));
+
+            std::wstring droppedFramesText = L"DroppedFrames count[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(droppedFrames.exchange(0, std::memory_order_relaxed));
+            Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(droppedFramesTextIndex, std::move(droppedFramesText));
 
             delayCount = 0;
             totalDelayMS = 0;
+            //UpdateWaitTimeCount = 0;
+            //totalUpdateWaitTimeMS = 0;
             lastTime = currentTime;
         }
 #endif
@@ -293,13 +304,6 @@ namespace NL::Render
 
         m_immContextCopy->CopyResource(s.texP.Get(), src);
 
-        uint64_t seq = m_currentSequence.fetch_add(1, std::memory_order_relaxed) + 1;
-        s.sequence.store(seq, std::memory_order_release);
-
-#ifdef __ENABLE_DEBUG_INFO
-        s.updateTime = std::chrono::high_resolution_clock::now();
-#endif
-
         s.mutexP->ReleaseSync(KM_CONSUMER);
         m_immContextCopy->Flush();
 
@@ -321,7 +325,7 @@ namespace NL::Render
         if (!slot.has_value())
         {
 #ifdef __ENABLE_DEBUG_INFO
-            freeSlotNotFound.fetch_add(1, std::memory_order_relaxed);
+            droppedFrames.fetch_add(1, std::memory_order_relaxed);
 #endif
             return false;
         }
@@ -331,59 +335,41 @@ namespace NL::Render
 
     RussoCEFRenderLayer::Slot* RussoCEFRenderLayer::AcquireFrame()
     {
-        uint32_t latchedIdx = m_latchedSlot.load(std::memory_order_relaxed);
+        DEBUG_INFO_UPDATE_TEXT(acquireFrameVariantIndex, L"AcquireFrameVariant[" + std::to_wstring(instanceID) + L"]: none");
 
-        uint64_t currentSeq = 0;
-        if (latchedIdx != kInvalid)
+        const uint32_t latest = m_latestUpdated.load(std::memory_order_acquire);
+        uint32_t latched = m_latchedSlot.load(std::memory_order_relaxed);
+
+        if (latest == kInvalid)
         {
-            currentSeq = m_slots[latchedIdx].sequence.load(std::memory_order_acquire);
+            DEBUG_INFO_UPDATE_TEXT(acquireFrameVariantIndex, L"AcquireFrameVariant[" + std::to_wstring(instanceID) + L"]: latest == kInvalid");
+
+            return (latched == kInvalid) ? nullptr : &m_slots[latched];
         }
 
-        int bestCandidateIdx = -1;
-        uint64_t bestCandidateSeq = currentSeq;
-
-        for (uint32_t i = 0; i < SLOT_COUNT; ++i)
+        if (latched == latest)
         {
-            if (i == latchedIdx)
-            {
-                continue;
-            }
+            DEBUG_INFO_UPDATE_TEXT(acquireFrameVariantIndex, L"AcquireFrameVariant[" + std::to_wstring(instanceID) + L"]: latched == latest");
 
-            uint64_t seq = m_slots[i].sequence.load(std::memory_order_acquire);
-
-            if (seq <= bestCandidateSeq) {
-                continue;
-            }
-            
-            if (m_slots[i].mutexC->AcquireSync(KM_CONSUMER, 0) == S_OK)
-            {
-                if (bestCandidateIdx != -1)
-                {
-                    m_slots[bestCandidateIdx].mutexC->ReleaseSync(KM_PRODUCER);
-                }
-
-                bestCandidateIdx = i;
-                bestCandidateSeq = seq;
-            }
+            return &m_slots[latched];
         }
 
-        if (bestCandidateIdx != -1)
+        if (m_slots[latest].mutexC->AcquireSync(KM_CONSUMER, 1) == S_OK)
         {
-            if (latchedIdx != kInvalid)
+            if (latched != kInvalid)
             {
-                m_slots[latchedIdx].mutexC->ReleaseSync(KM_PRODUCER);
+                m_slots[latched].mutexC->ReleaseSync(KM_PRODUCER);
             }
 
-            m_latchedSlot.store(bestCandidateIdx, std::memory_order_release);
+            DEBUG_INFO_UPDATE_TEXT(acquireFrameVariantIndex, L"AcquireFrameVariant[" + std::to_wstring(instanceID) + L"]: latest.AcquireSync");
 
-            DEBUG_INFO_UPDATE_TEXT(acquireFrameVariantIndex, L"New Frame Seq: " + std::to_wstring(bestCandidateSeq));
-
-            return &m_slots[bestCandidateIdx];
+            m_latchedSlot.store(latest, std::memory_order_release);
+            return &m_slots[latest];
         }
 
-        DEBUG_INFO_UPDATE_TEXT(acquireFrameVariantIndex, L"Keep Frame Seq: " + std::to_wstring(currentSeq));
+        DEBUG_INFO_UPDATE_TEXT(acquireFrameVariantIndex, L"AcquireFrameVariant[" + std::to_wstring(instanceID) + L"]: latched");
 
-        return (latchedIdx == kInvalid) ? nullptr : &m_slots[latchedIdx];
+        return (latched == kInvalid) ? nullptr : &m_slots[latched];
     }
 
     void RussoCEFRenderLayer::CreateSlot(uint32_t i)
@@ -410,6 +396,8 @@ namespace NL::Render
         subresourceData.pSysMem = initialData.data();
         subresourceData.SysMemPitch = m_renderData->width * 4;
         subresourceData.SysMemSlicePitch = dataSize;
+
+        m_slots[i] = Slot{};
 
         // producer - create texture
         auto hr = m_deviceCopy->CreateTexture2D(&td, &subresourceData, m_slots[i].texP.ReleaseAndGetAddressOf());

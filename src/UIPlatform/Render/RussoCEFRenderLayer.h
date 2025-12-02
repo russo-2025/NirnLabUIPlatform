@@ -40,6 +40,12 @@ namespace NL::Render
         std::atomic<size_t> updateTimeMcsCount = 0;
         size_t updateTimeIndex = 0;
 
+        std::atomic<int64_t> updateTimeHighMsc = 0;
+        size_t updateTimeHighIndex = 0;
+
+        std::atomic<bool> updateStatusValue = false;
+        size_t updateStatusIndex = 0;
+
         size_t acquireFrameVariantIndex = 0;
 
         std::atomic<size_t> freeSlotNotFound = 0;

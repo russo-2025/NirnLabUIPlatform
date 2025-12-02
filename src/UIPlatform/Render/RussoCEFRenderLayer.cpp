@@ -127,6 +127,12 @@ namespace NL::Render
         std::wstring updateTimeText = L"UpdateTime ms[" + std::to_wstring(instanceID) + L"]: 0";
         updateTimeIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(updateTimeText));
 
+        std::wstring updateTimeHighText = L"UpdateTimeHigh ms[" + std::to_wstring(instanceID) + L"]: 0";
+        updateTimeHighIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(updateTimeHighText));
+
+        std::wstring updateStatusText = L"UpdateStatus[" + std::to_wstring(instanceID) + L"]: none";
+        updateStatusIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(updateStatusText));
+
         std::wstring acquireFrameVariantText = L"AcquireFrameVariant[" + std::to_wstring(instanceID) + L"]: none";
         acquireFrameVariantIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(acquireFrameVariantText));
 
@@ -163,9 +169,16 @@ namespace NL::Render
 
             auto updateTimeMcsTotalValue = updateTimeMcsTotal.exchange(0, std::memory_order_relaxed);
             auto updateTimeMcsCountValue = updateTimeMcsCount.exchange(0, std::memory_order_relaxed);
-            auto updateTimeMs = updateTimeMcsCountValue > 0 ? (updateTimeMcsTotalValue / updateTimeMcsCountValue) : 0;
-            std::wstring updateWaitTimeText = L"UpdateTime ms[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(updateTimeMs);
+            auto updateTimeMcs = updateTimeMcsCountValue > 0 ? (updateTimeMcsTotalValue / updateTimeMcsCountValue) : 0;
+            std::wstring updateWaitTimeText = L"UpdateTime mcs[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(updateTimeMcs);
             Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(updateTimeIndex, std::move(updateWaitTimeText));
+
+            std::wstring updateTimeHighText = L"UpdateTimeHigh mcs[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(updateTimeHighMsc.load(std::memory_order_relaxed));
+            Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(updateTimeHighIndex, std::move(updateTimeHighText));
+
+            std::wstring updateStatus = updateStatusValue.load(std::memory_order_relaxed) ? L"start" : L"end";
+            std::wstring updateStatusText = L"UpdateStatus[" + std::to_wstring(instanceID) + L"]: " + updateStatus;
+            Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(updateStatusIndex, std::move(updateStatusText));
 
             std::wstring freeSlotNotFoundText = L"FreeSlotNotFoundForWrite count[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(freeSlotNotFound.load(std::memory_order_relaxed));
             Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(freeSlotNotFoundTextIndex, std::move(freeSlotNotFoundText));
@@ -222,12 +235,15 @@ namespace NL::Render
         const CefAcceleratedPaintInfo& info)
     {
 #ifdef __ENABLE_DEBUG_INFO
+        updateStatusValue.store(true, std::memory_order_relaxed);
+
         auto startTime = std::chrono::high_resolution_clock::now();
         fps.fetch_add(1, std::memory_order_relaxed);
 #endif
 
         if (type == PET_POPUP || !initialized.load(std::memory_order_acquire))
         {
+            updateStatusValue.store(false, std::memory_order_relaxed);
             return;
         }
 
@@ -244,11 +260,16 @@ namespace NL::Render
         tex->Release();
 
 #ifdef __ENABLE_DEBUG_INFO
-        auto updateTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime).count();
+        auto currentUpdateTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime).count();
 
-        updateTimeMcsTotal.fetch_add(updateTime, std::memory_order_relaxed);
+        updateTimeMcsTotal.fetch_add(currentUpdateTime, std::memory_order_relaxed);
         updateTimeMcsCount.fetch_add(1, std::memory_order_relaxed);
+
+        auto updateTimeHigh = updateTimeHighMsc.load(std::memory_order_relaxed);
+        updateTimeHighMsc.store(std::max(updateTimeHigh, currentUpdateTime), std::memory_order_relaxed);
 #endif
+
+        updateStatusValue.store(false, std::memory_order_relaxed);
     }
 
     std::optional<uint32_t> RussoCEFRenderLayer::ReserveSlotForWrite()

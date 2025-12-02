@@ -124,8 +124,8 @@ namespace NL::Render
         std::wstring delayText = L"FrameDelay ms[" + std::to_wstring(instanceID) + L"]: 0";
         delayTextIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(delayText));
 
-        //std::wstring updateWaitTimeText = L"UpdateWaitTime ms[" + std::to_wstring(instanceID) + L"]: 0";
-        //updateWaitTimeIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(updateWaitTimeText));
+        std::wstring updateTimeText = L"UpdateTime ms[" + std::to_wstring(instanceID) + L"]: 0";
+        updateTimeIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(updateTimeText));
 
         std::wstring acquireFrameVariantText = L"AcquireFrameVariant[" + std::to_wstring(instanceID) + L"]: none";
         acquireFrameVariantIndex = Render::DebugRenderLayer::GetSingleton()->AddTextLine(std::move(acquireFrameVariantText));
@@ -159,14 +159,17 @@ namespace NL::Render
         double elapsed = std::chrono::duration<double>(currentTime - lastTime).count();
         if (elapsed >= 1.0)
         {
-            std::wstring fpsText = L"CEF FPS count[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(fps.exchange(0, std::memory_order_relaxed));
+            std::wstring fpsText = L"CEF FPS count[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(fps.load(std::memory_order_relaxed));
             Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(fpsTextIndex, std::move(fpsText));
 
             std::wstring delayText = L"FrameDelay ms[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(totalDelayMS / delayCount);
             Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(delayTextIndex, std::move(delayText));
 
-            //std::wstring updateWaitTimeText = L"UpdateWaitTime ms[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(totalUpdateWaitTimeMS / UpdateWaitTimeCount);
-            //Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(updateWaitTimeIndex, std::move(updateWaitTimeText));
+            auto updateTimeMcsTotalValue = updateTimeMcsTotal.exchange(0, std::memory_order_relaxed);
+            auto updateTimeMcsCountValue = updateTimeMcsCount.exchange(0, std::memory_order_relaxed);
+            auto updateTimeMs = updateTimeMcsCountValue > 0 ? (updateTimeMcsTotalValue / updateTimeMcsCountValue) : 0;
+            std::wstring updateWaitTimeText = L"UpdateTime ms[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(updateTimeMs);
+            Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(updateTimeIndex, std::move(updateWaitTimeText));
 
             std::wstring droppedFramesText = L"DroppedFrames count[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(droppedFrames.exchange(0, std::memory_order_relaxed));
             Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(droppedFramesTextIndex, std::move(droppedFramesText));
@@ -225,6 +228,7 @@ namespace NL::Render
         const CefAcceleratedPaintInfo& info)
     {
 #ifdef __ENABLE_DEBUG_INFO
+        auto startTime = std::chrono::high_resolution_clock::now();
         fps.fetch_add(1, std::memory_order_relaxed);
 #endif
 
@@ -244,6 +248,13 @@ namespace NL::Render
         UpdateFrame(tex);
 
         tex->Release();
+
+#ifdef __ENABLE_DEBUG_INFO
+        auto updateTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime).count();
+
+        updateTimeMcsTotal.fetch_add(updateTime, std::memory_order_relaxed);
+        updateTimeMcsCount.fetch_add(1, std::memory_order_relaxed);
+#endif
     }
 
     std::optional<uint32_t> RussoCEFRenderLayer::ReserveSlotForWrite()

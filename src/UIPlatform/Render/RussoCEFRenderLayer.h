@@ -35,6 +35,10 @@ namespace NL::Render
         //double totalUpdateWaitTimeMS = 0;
         //size_t UpdateWaitTimeCount = 0;
         //size_t updateWaitTimeIndex = 0;
+        
+        std::atomic<uint64_t> updateTimeMcsTotal = 0;
+        std::atomic<size_t> updateTimeMcsCount = 0;
+        size_t updateTimeIndex = 0;
 
         size_t acquireFrameVariantIndex = 0;
 

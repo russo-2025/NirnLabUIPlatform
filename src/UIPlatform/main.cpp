@@ -118,11 +118,13 @@ extern "C"
         auto& controller = NL::Controllers::PublicAPIController::GetSingleton();
         if (!controller.InitIfNotPlatformService(a_settings))
         {
+            spdlog::info("CreateOrGetUIPlatformAPI: Platform service initialization failed");
             return false;
         }
 
         if (a_outApi == nullptr)
         {
+            spdlog::info("CreateOrGetUIPlatformAPI: a_outApi is nullptr");
             return false;
         }
 

@@ -66,6 +66,23 @@ namespace NL::CEF
 
         // Allow remote debugging
         command_line->AppendSwitchWithValue("remote-allow-origins", "*");
+
+        // fix GPU lag
+        command_line->AppendSwitch("in-process-gpu"); // Run the GPU process as a thread in the browser process.
+
+        //
+        command_line->AppendSwitch("disable-background-timer-throttling"); // Disable task throttling of timer tasks from background pages.
+        command_line->AppendSwitch("disable-renderer-backgrounding"); // Prevent renderer process backgrounding when set.
+        //command_line->AppendSwitch("disable-gpu-vsync"); // Stop the GPU from synchronizing presentation with vblank
+        command_line->AppendSwitch("init-isolate-as-foreground"); // Specifies that the main-thread Isolate should initialize in foreground mode. If not specified, the the Isolate will start in background mode for extension processes and foreground mode otherwise.
+        //command_line->AppendSwitch("in-process-broker"); // Creates the service broker inside of this process. Only one process should host the service broker.
+
+        // Set default encoding to UTF-8
+        command_line->AppendSwitchWithValue("default-encoding", "utf-8");
+        // disable-features - SitePerProcess,StrictSiteIsolation
+        // command_line->AppendSwitchWithValue("disable-features", "WebBluetooth,WebUSB,WebHID,WebSerial,UseGCMFromChrome,WebOTP,WebPayments,BackForwardCache,MediaRouter,RendererCodeIntegrity,CalculateNativeWinOcclusion,IdleDetection,Notifications,PasswordManager");
+        command_line->AppendSwitchWithValue("disable-features", "WebBluetooth,WebUSB,WebHID,WebSerial,WebOTP,WebPayments,Notifications,PasswordManager,BackForwardCache,MediaRouter");
+
     }
 
     CefRefPtr<CefBrowserProcessHandler> CEF::NirnLabCefApp::GetBrowserProcessHandler()

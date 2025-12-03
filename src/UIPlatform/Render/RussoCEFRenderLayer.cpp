@@ -161,7 +161,7 @@ namespace NL::Render
         double elapsed = std::chrono::duration<double>(currentTime - lastTime).count();
         if (elapsed >= 1.0)
         {
-            std::wstring fpsText = L"CEF FPS count[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(fps.load(std::memory_order_relaxed));
+            std::wstring fpsText = L"CEF FPS count[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(fps.exchange(0, std::memory_order_relaxed));
             Render::DebugRenderLayer::GetSingleton()->UpdateTextLine(fpsTextIndex, std::move(fpsText));
 
             std::wstring delayText = L"FrameDelay ms[" + std::to_wstring(instanceID) + L"]: " + std::to_wstring(totalDelayMS / delayCount);
@@ -243,7 +243,9 @@ namespace NL::Render
 
         if (type == PET_POPUP || !initialized.load(std::memory_order_acquire))
         {
+#ifdef __ENABLE_DEBUG_INFO
             updateStatusValue.store(false, std::memory_order_relaxed);
+#endif
             return;
         }
 
@@ -267,9 +269,8 @@ namespace NL::Render
 
         auto updateTimeHigh = updateTimeHighMsc.load(std::memory_order_relaxed);
         updateTimeHighMsc.store(std::max(updateTimeHigh, currentUpdateTime), std::memory_order_relaxed);
-#endif
-
         updateStatusValue.store(false, std::memory_order_relaxed);
+#endif
     }
 
     std::optional<uint32_t> RussoCEFRenderLayer::ReserveSlotForWrite()

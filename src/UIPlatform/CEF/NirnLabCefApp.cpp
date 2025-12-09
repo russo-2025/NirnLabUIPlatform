@@ -68,6 +68,8 @@ namespace NL::CEF
         command_line->AppendSwitchWithValue("remote-allow-origins", "*");
 
         // fix GPU lag
+        // похоже что при большой нагрузке GPU система понижает приоритет 
+        // или вообще откладывает исполнение процесса с отрисовкой браузера
         command_line->AppendSwitch("in-process-gpu"); // Run the GPU process as a thread in the browser process.
 
         //
@@ -82,7 +84,6 @@ namespace NL::CEF
         // disable-features - SitePerProcess,StrictSiteIsolation
         // command_line->AppendSwitchWithValue("disable-features", "WebBluetooth,WebUSB,WebHID,WebSerial,UseGCMFromChrome,WebOTP,WebPayments,BackForwardCache,MediaRouter,RendererCodeIntegrity,CalculateNativeWinOcclusion,IdleDetection,Notifications,PasswordManager");
         command_line->AppendSwitchWithValue("disable-features", "WebBluetooth,WebUSB,WebHID,WebSerial,WebOTP,WebPayments,Notifications,PasswordManager,BackForwardCache,MediaRouter");
-
     }
 
     CefRefPtr<CefBrowserProcessHandler> CEF::NirnLabCefApp::GetBrowserProcessHandler()

@@ -122,7 +122,7 @@ namespace NL::Controllers
     {
         std::lock_guard lock(m_mapMutex);
         const auto handleIt = m_browserHandleMap.find(a_handle);
-        if (handleIt == m_browserHandleMap.cend())
+        if (handleIt == m_browserHandleMap.end())
         {
             spdlog::warn("{}: not found browser ref handle", NameOf(PublicAPIController));
             return;
@@ -131,7 +131,7 @@ namespace NL::Controllers
         const auto browserName = handleIt->second;
         m_browserHandleMap.erase(handleIt);
         const auto browserIt = m_browserNameMap.find(browserName);
-        if (browserIt == m_browserNameMap.cend())
+        if (browserIt == m_browserNameMap.end())
         {
             spdlog::warn("{}: not found browser pointer", NameOf(PublicAPIController));
             return;
@@ -181,7 +181,7 @@ namespace NL::Controllers
 
         std::lock_guard lock(m_mapMutex);
         const auto browserIt = m_browserNameMap.find(a_browserName);
-        if (browserIt != m_browserNameMap.cend())
+        if (browserIt != m_browserNameMap.end())
         {
             const auto refHandle = m_currentRefHandle++;
             browserIt->second.refHandles.insert(refHandle);

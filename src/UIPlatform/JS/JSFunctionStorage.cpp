@@ -16,14 +16,14 @@ namespace NL::JS
 
         std::lock_guard lock(m_funcCallbackMapMutex);
         const auto objIt = m_funcCallbackMap.find(a_funcInfo.objectName);
-        if (objIt == m_funcCallbackMap.cend())
+        if (objIt == m_funcCallbackMap.end())
         {
             m_funcCallbackMap.insert({a_funcInfo.objectName, {{a_funcInfo.funcName, a_funcInfo.callbackData}}});
             return true;
         }
 
         const auto funcIt = objIt->second.find(a_funcInfo.funcName);
-        if (funcIt == objIt->second.cend())
+        if (funcIt == objIt->second.end())
         {
             objIt->second.insert({a_funcInfo.funcName, a_funcInfo.callbackData});
             return true;

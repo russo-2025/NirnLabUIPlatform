@@ -56,6 +56,55 @@ namespace NL::CEF
                     logger->log(static_cast<spdlog::level::level_enum>(argList->GetInt(0)), argList->GetString(1).ToString().c_str());
                 }
             }
+            else if (a_message->GetName() == IPC_JS_CONTEXT_CREATED)
+            {
+                m_logger->info("{}: JS context created", NameOf(DefaultBrowser));
+
+                // Add js func callbacks
+                if (m_clearJSFunctions)
+                {
+                    m_jsFuncStorage->ClearFunctionCallback();
+                }
+                else
+                {
+                    const auto browser = m_cefClient->GetBrowser();
+
+                    if (browser != nullptr && m_jsFuncStorage->GetSize() > 0)
+                    {
+                        auto cefMessage = CefProcessMessage::Create(IPC_JS_FUNCION_ADD_EVENT);
+                        cefMessage->GetArgumentList()->SetDictionary(0, m_jsFuncStorage->ConvertToCefDictionary());
+                        browser->GetMainFrame()->SendProcessMessage(CefProcessId::PID_RENDERER, cefMessage);
+                    }
+                }
+
+                for (auto& funcInfo : m_jsFuncCallbackInfoCache)
+                {
+                    AddFunctionCallbackAndSendMessage(funcInfo);
+                }
+                m_jsFuncCallbackInfoCache.clear();
+
+                // Remove js func callbacks
+                for (auto& funcInfo : m_jsFuncRemoveCache)
+                {
+                    RemoveFunctionCallbackAndSendMessage(std::get<0>(funcInfo).c_str(), std::get<1>(funcInfo).c_str());
+                }
+                m_jsFuncRemoveCache.clear();
+
+                // JS exec scripts
+                if (!m_jsExecCache.empty())
+                {
+                    for (auto& jsScript : m_jsExecCache)
+                    {
+                        ExecuteJavaScript(std::get<0>(jsScript).c_str(), std::get<1>(jsScript).c_str());
+                    }
+                    m_jsExecCache.clear();
+                    m_jsExecCache.shrink_to_fit();
+                }
+            }
+            else
+            {
+                m_logger->error("{}: received unknown IPC message: {}", NameOf(DefaultBrowser), a_message->GetName().ToString().c_str());
+            }
         });
 
         m_onAfterBrowserCreated_Connection = m_cefClient->onAfterBrowserCreated.connect([&](CefRefPtr<CefBrowser> a_cefBrowser) {
@@ -70,46 +119,6 @@ namespace NL::CEF
         m_onMainFrameLoadStart_Connection = m_cefClient->onMainFrameLoadStart.connect([&]() {
             std::lock_guard locker(m_urlMutex);
             m_isPageLoaded = true;
-
-            // Add js func callbacks
-            if (m_clearJSFunctions)
-            {
-                m_jsFuncStorage->ClearFunctionCallback();
-            }
-            else
-            {
-                const auto browser = m_cefClient->GetBrowser();
-                if (browser != nullptr && m_jsFuncStorage->GetSize() > 0)
-                {
-                    auto cefMessage = CefProcessMessage::Create(IPC_JS_FUNCION_ADD_EVENT);
-                    cefMessage->GetArgumentList()->SetDictionary(0, m_jsFuncStorage->ConvertToCefDictionary());
-                    browser->GetMainFrame()->SendProcessMessage(CefProcessId::PID_RENDERER, cefMessage);
-                }
-            }
-
-            for (auto& funcInfo : m_jsFuncCallbackInfoCache)
-            {
-                AddFunctionCallbackAndSendMessage(funcInfo);
-            }
-            m_jsFuncCallbackInfoCache.clear();
-
-            // Remove js func callbacks
-            for (auto& funcInfo : m_jsFuncRemoveCache)
-            {
-                RemoveFunctionCallbackAndSendMessage(std::get<0>(funcInfo).c_str(), std::get<1>(funcInfo).c_str());
-            }
-            m_jsFuncRemoveCache.clear();
-
-            // JS exec scripts
-            if (!m_jsExecCache.empty())
-            {
-                for (auto& jsScript : m_jsExecCache)
-                {
-                    ExecuteJavaScript(std::get<0>(jsScript).c_str(), std::get<1>(jsScript).c_str());
-                }
-                m_jsExecCache.clear();
-                m_jsExecCache.shrink_to_fit();
-            }
 
             // Focus
             if (m_isFocusedCached)

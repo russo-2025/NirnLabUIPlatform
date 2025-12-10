@@ -19,7 +19,7 @@ namespace NL::CEF
             CheckHresultThrow(hr, fmt::format("{}: failed to get dxgi adapter", NameOf(NirnLabCefApp)));
 
             DXGI_ADAPTER_DESC adapterDesc;
-            dxgiAdapter->GetDesc(&adapterDesc);
+            hr = dxgiAdapter->GetDesc(&adapterDesc);
             CheckHresultThrow(hr, fmt::format("{}: failed to get dxgi adapter desc", NameOf(NirnLabCefApp)));
 
             return fmt::format("{},{}", adapterDesc.AdapterLuid.HighPart, adapterDesc.AdapterLuid.LowPart);

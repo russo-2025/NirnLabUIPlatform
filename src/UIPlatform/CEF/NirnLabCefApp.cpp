@@ -83,7 +83,7 @@ namespace NL::CEF
         command_line->AppendSwitchWithValue("default-encoding", "utf-8");
         // disable-features - SitePerProcess,StrictSiteIsolation
         // command_line->AppendSwitchWithValue("disable-features", "WebBluetooth,WebUSB,WebHID,WebSerial,UseGCMFromChrome,WebOTP,WebPayments,BackForwardCache,MediaRouter,RendererCodeIntegrity,CalculateNativeWinOcclusion,IdleDetection,Notifications,PasswordManager");
-        command_line->AppendSwitchWithValue("disable-features", "WebBluetooth,WebUSB,WebHID,WebSerial,WebOTP,WebPayments,Notifications,PasswordManager,BackForwardCache,MediaRouter");
+        command_line->AppendSwitchWithValue("disable-features", "WebBluetooth,WebUSB,WebNFC,WebXR,WebHID,WebSerial,WebOTP,WebPayments,Notifications,PasswordManager,BackForwardCache,MediaRouter,AutofillServerCommunication,TranslateUI,WebAuthn,PushMessaging,WebRTC,SpellCheck,PrintCompositorLPAC,IdleDetection");
     }
 
     CefRefPtr<CefBrowserProcessHandler> CEF::NirnLabCefApp::GetBrowserProcessHandler()
